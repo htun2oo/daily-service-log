@@ -20,16 +20,17 @@ jobs:
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.27.4'
           channel: 'stable'
           cache: true
 
-      # Android structure အသစ်ကို Clean ဖြစ်အောင် အလိုအလျောက် ပြန်ဆောက်ပေးခြင်း
-      - name: Configure Android Project Structure
+      # Android project ဖိုင်ဟောင်းများကို ဖျက်ပြီး v2 embedding ပါသော ဖိုင်အသစ်များဖြင့် အစားထိုးခြင်း
+      - name: Clean and Recreate Android Platform
         run: |
           rm -rf android
-          flutter create . --platforms=android --org=com.dailyservicelog.app
-          flutter pub get
+          flutter create . --platforms=android
+
+      - name: Get Dependencies
+        run: flutter pub get
 
       - name: Build Release APK
         run: flutter build apk --release
