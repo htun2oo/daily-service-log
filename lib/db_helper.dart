@@ -2,60 +2,44 @@ import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
 
 class DBHelper {
-  static final DBHelper instance = DBHelper._init();
-  static Database? _database;
+  static Database? _db;
 
-  DBHelper._init();
-
-  Future<Database> get database async {
-    if (_database != null) return _database!;
-    _database = await _initDB('service_logs.db');
-    return _database!;
+  static Future<Database> get database async {
+    if (_db != null) return _db!;
+    _db = await _initDB();
+    return _db!;
   }
 
-  Future<Database> _initDB(String filePath) async {
-    final dbPath = await getDatabasesPath();
-    final path = join(dbPath, filePath);
-
+  static Future<Database> _initDB() async {
+    String path = join(await getDatabasesPath(), 'service_logs.db');
     return await openDatabase(
       path,
       version: 1,
       onCreate: (db, version) async {
         await db.execute('''
-          CREATE TABLE service_logs (
+          CREATE TABLE logs(
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            date TEXT NOT NULL,
-            customer_name TEXT NOT NULL,
-            service_type TEXT NOT NULL,
-            amount REAL NOT NULL,
-            remarks TEXT,
             title TEXT,
             description TEXT,
-            created_at TEXT
+            date TEXT
           )
         ''');
       },
     );
   }
 
-  Future<int> insertItem(Map<String, dynamic> row) async {
-    final db = await instance.database;
-    return await db.insert('service_logs', row);
+  static Future<int> insertLog(Map<String, dynamic> row) async {
+    Database db = await database;
+    return await db.insert('logs', row);
   }
 
-  Future<List<Map<String, dynamic>>> queryAllRows() async {
-    final db = await instance.database;
-    return await db.query('service_logs', orderBy: 'id DESC');
+  static Future<List<Map<String, dynamic>>> getLogs() async {
+    Database db = await database;
+    return await db.query('logs', orderBy: 'id DESC');
   }
 
-  Future<int> updateItem(Map<String, dynamic> row) async {
-    final db = await instance.database;
-    int id = row['id'];
-    return await db.update('service_logs', row, where: 'id = ?', whereArgs: [id]);
-  }
-
-  Future<int> deleteItem(int id) async {
-    final db = await instance.database;
-    return await db.delete('service_logs', where: 'id = ?', whereArgs: [id]);
+  static Future<int> deleteLog(int id) async {
+    Database db = await database;
+    return await db.delete('logs', where: 'id = ?', whereArgs: [id]);
   }
 }
