@@ -21,11 +21,15 @@ jobs:
         uses: subosito/flutter-action@v2
         with:
           channel: 'stable'
+          cache: true
 
-      - name: Get Dependencies
-        run: flutter pub get
+      # Android structure အသစ်ကို Clean ဖြစ်အောင် အလိုအလျောက် ပြန်ဆောက်ပေးခြင်း
+      - name: Re-create Android Platform
+        run: |
+          flutter create . --platforms=android --org=com.dailyservicelog.app
+          flutter pub get
 
-      - name: Build APK
+      - name: Build Release APK
         run: flutter build apk --release
 
       - name: Upload APK
