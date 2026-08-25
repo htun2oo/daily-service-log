@@ -26,6 +26,7 @@ class _LogListScreenState extends State<LogListScreen> {
     });
   }
 
+  // Service Log Form (Add/Create Dialog)
   void _showForm(int? id) async {
     _titleController.clear();
     _descController.clear();
@@ -45,17 +46,30 @@ class _LogListScreenState extends State<LogListScreen> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.end,
           children: [
+            const Text(
+              'New Service Log Entry',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 10),
             TextField(
               controller: _titleController,
-              decoration: const InputDecoration(hintText: 'Title'),
+              decoration: const InputDecoration(
+                labelText: 'Title / Customer Name',
+                border: OutlineInputBorder(),
+              ),
             ),
             const SizedBox(height: 10),
             TextField(
               controller: _descController,
-              decoration: const InputDecoration(hintText: 'Description'),
+              decoration: const InputDecoration(
+                labelText: 'Description / Service Details',
+                border: OutlineInputBorder(),
+              ),
             ),
             const SizedBox(height: 20),
-            ElevatedButton(
+            ElevatedButton.icon(
+              icon: const Icon(Icons.save),
+              label: const Text('Save Log'),
               onPressed: () async {
                 if (_titleController.text.isNotEmpty) {
                   await DBHelper.insertLog({
@@ -69,10 +83,40 @@ class _LogListScreenState extends State<LogListScreen> {
                   _refreshLogs();
                 }
               },
-              child: const Text('Add Log'),
             )
           ],
         ),
+      ),
+    );
+  }
+
+  // Settings Dialog
+  void _showSettingsDialog() {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Row(
+          children: [
+            Icon(Icons.settings, color: Colors.blueGrey),
+            SizedBox(width: 8),
+            Text('Settings'),
+          ],
+        ),
+        content: const Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('App Version: 1.0.0'),
+            SizedBox(height: 8),
+            Text('Database Status: Connected (Local SQLite)'),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Close'),
+          ),
+        ],
       ),
     );
   }
@@ -84,24 +128,45 @@ class _LogListScreenState extends State<LogListScreen> {
         title: const Text('Daily Service Logs'),
         backgroundColor: Theme.of(context).colorScheme.inversePrimary,
         actions: [
-          // ညာဘက်တွင် မျဉ်းသုံးကြောင်း Filter Icon ဖြင့် PopupMenu ထည့်သွင်းခြင်း
+          // PopMenu ထဲတွင် Form တည်ဆောက်ခြင်းနှင့် Settings တို့ ထည့်သွင်းထားခြင်း
           PopupMenuButton<String>(
             icon: const Icon(Icons.filter_list),
-            tooltip: 'Filter & Menu Options',
+            tooltip: 'Menu Options',
             onSelected: (String value) {
-              if (value == 'all') {
+              if (value == 'add_log') {
+                _showForm(null); // Service Log Form ဖွင့်ရန်
+              } else if (value == 'settings') {
+                _showSettingsDialog(); // Settings Dialog ဖွင့်ရန်
+              } else if (value == 'all') {
                 _refreshLogs();
               } else if (value == 'latest') {
                 setState(() {
                   _logs.sort((a, b) => b['id'].compareTo(a['id']));
                 });
-              } else if (value == 'oldest') {
-                setState(() {
-                  _logs.sort((a, b) => a['id'].compareTo(b['id']));
-                });
               }
             },
             itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
+              const PopupMenuItem<String>(
+                value: 'add_log',
+                child: Row(
+                  children: [
+                    Icon(Icons.add_circle_outline, color: Colors.blue),
+                    SizedBox(width: 8),
+                    Text('Create New Log'),
+                  ],
+                ),
+              ),
+              const PopupMenuItem<String>(
+                value: 'settings',
+                child: Row(
+                  children: [
+                    Icon(Icons.settings, color: Colors.grey),
+                    SizedBox(width: 8),
+                    Text('Settings'),
+                  ],
+                ),
+              ),
+              const PopupMenuDivider(),
               const PopupMenuItem<String>(
                 value: 'all',
                 child: Row(
@@ -119,16 +184,6 @@ class _LogListScreenState extends State<LogListScreen> {
                     Icon(Icons.arrow_downward, color: Colors.black54),
                     SizedBox(width: 8),
                     Text('Sort Newest First'),
-                  ],
-                ),
-              ),
-              const PopupMenuItem<String>(
-                value: 'oldest',
-                child: Row(
-                  children: [
-                    Icon(Icons.arrow_upward, color: Colors.black54),
-                    SizedBox(width: 8),
-                    Text('Sort Oldest First'),
                   ],
                 ),
               ),
