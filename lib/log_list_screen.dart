@@ -83,6 +83,58 @@ class _LogListScreenState extends State<LogListScreen> {
       appBar: AppBar(
         title: const Text('Daily Service Logs'),
         backgroundColor: Theme.of(context).colorScheme.inversePrimary,
+        actions: [
+          // ညာဘက်တွင် မျဉ်းသုံးကြောင်း Filter Icon ဖြင့် PopupMenu ထည့်သွင်းခြင်း
+          PopupMenuButton<String>(
+            icon: const Icon(Icons.filter_list),
+            tooltip: 'Filter & Menu Options',
+            onSelected: (String value) {
+              if (value == 'all') {
+                _refreshLogs();
+              } else if (value == 'latest') {
+                setState(() {
+                  _logs.sort((a, b) => b['id'].compareTo(a['id']));
+                });
+              } else if (value == 'oldest') {
+                setState(() {
+                  _logs.sort((a, b) => a['id'].compareTo(b['id']));
+                });
+              }
+            },
+            itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
+              const PopupMenuItem<String>(
+                value: 'all',
+                child: Row(
+                  children: [
+                    Icon(Icons.list, color: Colors.black54),
+                    SizedBox(width: 8),
+                    Text('Show All Logs'),
+                  ],
+                ),
+              ),
+              const PopupMenuItem<String>(
+                value: 'latest',
+                child: Row(
+                  children: [
+                    Icon(Icons.arrow_downward, color: Colors.black54),
+                    SizedBox(width: 8),
+                    Text('Sort Newest First'),
+                  ],
+                ),
+              ),
+              const PopupMenuItem<String>(
+                value: 'oldest',
+                child: Row(
+                  children: [
+                    Icon(Icons.arrow_upward, color: Colors.black54),
+                    SizedBox(width: 8),
+                    Text('Sort Oldest First'),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ],
       ),
       body: _logs.isEmpty
           ? const Center(child: Text('No Logs Found'))
