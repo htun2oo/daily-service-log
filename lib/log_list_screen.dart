@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'db_helper.dart';
+import 'main.dart';
 
 class LogListScreen extends StatefulWidget {
   const LogListScreen({super.key});
@@ -26,7 +27,7 @@ class _LogListScreenState extends State<LogListScreen> {
     });
   }
 
-  // Service Log Form (Add/Create Dialog)
+  // Service Log Form (Add/Create Sheet)
   void _showForm(int? id) async {
     _titleController.clear();
     _descController.clear();
@@ -47,7 +48,7 @@ class _LogListScreenState extends State<LogListScreen> {
           crossAxisAlignment: CrossAxisAlignment.end,
           children: [
             const Text(
-              'New Service Log Entry',
+              'Create New Log Form',
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 10),
@@ -90,34 +91,79 @@ class _LogListScreenState extends State<LogListScreen> {
     );
   }
 
-  // Settings Dialog
+  // Theme ပြောင်းလဲနိုင်သော Settings Dialog
   void _showSettingsDialog() {
     showDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Row(
-          children: [
-            Icon(Icons.settings, color: Colors.blueGrey),
-            SizedBox(width: 8),
-            Text('Settings'),
-          ],
-        ),
-        content: const Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('App Version: 1.0.0'),
-            SizedBox(height: 8),
-            Text('Database Status: Connected (Local SQLite)'),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('Close'),
-          ),
-        ],
-      ),
+      builder: (ctx) {
+        final currentMode = MyApp.of(context).currentTheme;
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              title: const Row(
+                children: [
+                  Icon(Icons.settings, color: Colors.blueGrey),
+                  SizedBox(width: 8),
+                  Text('Settings'),
+                ],
+              ),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Theme Mode',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  RadioListTile<ThemeMode>(
+                    title: const Text('System Default'),
+                    value: ThemeMode.system,
+                    groupValue: currentMode,
+                    onChanged: (val) {
+                      if (val != null) {
+                        MyApp.of(context).changeTheme(val);
+                        Navigator.of(ctx).pop();
+                      }
+                    },
+                  ),
+                  RadioListTile<ThemeMode>(
+                    title: const Text('Light Theme'),
+                    value: ThemeMode.light,
+                    groupValue: currentMode,
+                    onChanged: (val) {
+                      if (val != null) {
+                        MyApp.of(context).changeTheme(val);
+                        Navigator.of(ctx).pop();
+                      }
+                    },
+                  ),
+                  RadioListTile<ThemeMode>(
+                    title: const Text('Dark Theme'),
+                    value: ThemeMode.dark,
+                    groupValue: currentMode,
+                    onChanged: (val) {
+                      if (val != null) {
+                        MyApp.of(context).changeTheme(val);
+                        Navigator.of(ctx).pop();
+                      }
+                    },
+                  ),
+                  const Divider(),
+                  const Text('App Version: 1.0.0'),
+                  const SizedBox(height: 4),
+                  const Text('Database: SQLite Connected'),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(ctx).pop(),
+                  child: const Text('Close'),
+                ),
+              ],
+            );
+          },
+        );
+      },
     );
   }
 
@@ -128,15 +174,14 @@ class _LogListScreenState extends State<LogListScreen> {
         title: const Text('Daily Service Logs'),
         backgroundColor: Theme.of(context).colorScheme.inversePrimary,
         actions: [
-          // PopMenu ထဲတွင် Form တည်ဆောက်ခြင်းနှင့် Settings တို့ ထည့်သွင်းထားခြင်း
           PopupMenuButton<String>(
             icon: const Icon(Icons.filter_list),
             tooltip: 'Menu Options',
             onSelected: (String value) {
               if (value == 'add_log') {
-                _showForm(null); // Service Log Form ဖွင့်ရန်
+                _showForm(null);
               } else if (value == 'settings') {
-                _showSettingsDialog(); // Settings Dialog ဖွင့်ရန်
+                _showSettingsDialog();
               } else if (value == 'all') {
                 _refreshLogs();
               } else if (value == 'latest') {
@@ -152,7 +197,7 @@ class _LogListScreenState extends State<LogListScreen> {
                   children: [
                     Icon(Icons.add_circle_outline, color: Colors.blue),
                     SizedBox(width: 8),
-                    Text('Create New Log'),
+                    Text('Create New Log Form'),
                   ],
                 ),
               ),
