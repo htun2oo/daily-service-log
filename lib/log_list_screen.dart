@@ -3,6 +3,20 @@ import 'package:flutter/material.dart';
 import 'db_helper.dart';
 import 'main.dart';
 
+class CustomFieldConfig {
+  String name;
+  String type; // Text, Number, Date, Selection
+  bool isRequired;
+  List<String> options;
+
+  CustomFieldConfig({
+    required this.name,
+    this.type = 'Text',
+    this.isRequired = false,
+    List<String>? options,
+  }) : options = options ?? [];
+}
+
 class LogListScreen extends StatefulWidget {
   const LogListScreen({super.key});
 
@@ -12,11 +26,6 @@ class LogListScreen extends StatefulWidget {
 
 class _LogListScreenState extends State<LogListScreen> {
   List<Map<String, dynamic>> _logs = [];
-  final _titleController = TextEditingController();
-  final _descController = TextEditingController();
-
-  // Dynamic Custom Fields စီမံရန် List
-  final List<Map<String, TextEditingController>> _customFields = [];
 
   @override
   void initState() {
@@ -31,215 +40,300 @@ class _LogListScreenState extends State<LogListScreen> {
     });
   }
 
-  // Blank Custom Field သစ်တစ်ခု ထည့်သွင်းခြင်း
-  void _addCustomField() {
-    setState(() {
-      _customFields.add({
-        'label': TextEditingController(),
-        'value': TextEditingController(),
-      });
-    });
-  }
-
-  // Custom Field ပြန်ဖျက်ခြင်း
-  void _removeCustomField(int index) {
-    setState(() {
-      _customFields[index]['label']?.dispose();
-      _customFields[index]['value']?.dispose();
-      _customFields.removeAt(index);
-    });
-  }
-
-  // Create New Log Form (Blank & Custom Fields Allowed)
-  void _showForm(int? id) async {
-    _titleController.clear();
-    _descController.clear();
-    _customFields.clear();
-
-    // Form စဖွင့်ချိန်တွင် Blank Custom Field (၁) ခု အလိုအလျောက် ထည့်သွင်းပေးထားခြင်း
-    _addCustomField();
+  // MS Access Style Form Builder & Dynamic Data Entry Screen
+  void _showAccessFormBuilder() {
+    List<CustomFieldConfig> formFields = [
+      CustomFieldConfig(name: 'Title / Subject', type: 'Text', isRequired: true),
+    ];
 
     showModalBottomSheet(
       context: context,
-      elevation: 5,
       isScrollControlled: true,
-      builder: (_) => StatefulBuilder(
-        builder: (BuildContext context, StateSetter setModalState) {
-          return Container(
-            padding: EdgeInsets.only(
-              top: 15,
-              left: 15,
-              right: 15,
-              bottom: MediaQuery.of(context).viewInsets.bottom + 20,
-            ),
-            child: SingleChildScrollView(
+      elevation: 5,
+      builder: (builderContext) {
+        return StatefulBuilder(
+          builder: (BuildContext context, StateSetter setModalState) {
+            return Container(
+              height: MediaQuery.of(context).size.height * 0.85,
+              padding: const EdgeInsets.all(16),
               child: Column(
-                mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
-                    'Create New Log Form',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  Row(
+                    children: [
+                      const Icon(Icons.table_chart_outlined, color: Colors.blue),
+                      const SizedBox(width: 8),
+                      const Text(
+                        'MS Access Style - Create Form',
+                        style: TextStyle(
+                            fontSize: 18, fontWeight: FontWeight.bold),
+                      ),
+                      const Spacer(),
+                      IconButton(
+                        icon: const Icon(Icons.close),
+                        onPressed: () => Navigator.pop(context),
+                      )
+                    ],
                   ),
-                  const SizedBox(height: 15),
-                  TextField(
-                    controller: _titleController,
-                    decoration: const InputDecoration(
-                      labelText: 'Title (Optional)',
-                      hintText: 'Leave blank for auto title',
-                      border: OutlineInputBorder(),
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  TextField(
-                    controller: _descController,
-                    decoration: const InputDecoration(
-                      labelText: 'Description / Note (Optional)',
-                      border: OutlineInputBorder(),
-                    ),
-                  ),
-                  const SizedBox(height: 15),
-                  const Text(
-                    'Custom Fields',
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
-                  ),
-                  const SizedBox(height: 8),
-
-                  // Dynamic Blank Custom Fields List Display
-                  ..._customFields.asMap().entries.map((entry) {
-                    int idx = entry.key;
-                    var controllers = entry.value;
-                    return Padding(
-                      padding: const EdgeInsets.only(bottom: 10),
-                      child: Row(
+                  const Divider(),
+                  Expanded(
+                    child: SingleChildScrollView(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Expanded(
-                            flex: 4,
-                            child: TextField(
-                              controller: controllers['label'],
-                              decoration: const InputDecoration(
-                                labelText: 'Field Name',
-                                hintText: 'e.g. Phone, Price',
-                                border: OutlineInputBorder(),
-                              ),
-                            ),
+                          const Text(
+                            '1. Design Form Fields (Data Schema):',
+                            style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                color: Colors.blueGrey),
                           ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            flex: 5,
-                            child: TextField(
-                              controller: controllers['value'],
-                              decoration: const InputDecoration(
-                                labelText: 'Value',
-                                hintText: 'Enter details',
-                                border: OutlineInputBorder(),
+                          const SizedBox(height: 10),
+
+                          // Field Builder List
+                          ...formFields.asMap().entries.map((entry) {
+                            int idx = entry.key;
+                            var field = entry.value;
+                            return Card(
+                              margin: const EdgeInsets.only(bottom: 8),
+                              child: Padding(
+                                padding: const EdgeInsets.all(8.0),
+                                child: Column(
+                                  children: [
+                                    Row(
+                                      children: [
+                                        Expanded(
+                                          child: TextField(
+                                            decoration: const InputDecoration(
+                                              labelText: 'Field Name',
+                                              isDense: true,
+                                            ),
+                                            controller: TextEditingController(
+                                                text: field.name)
+                                              ..selection = TextSelection
+                                                  .fromPosition(TextPosition(
+                                                      offset:
+                                                          field.name.length)),
+                                            onChanged: (val) =>
+                                                field.name = val,
+                                          ),
+                                        ),
+                                        const SizedBox(width: 8),
+                                        DropdownButton<String>(
+                                          value: field.type,
+                                          items: ['Text', 'Number', 'Date']
+                                              .map((t) => DropdownMenuItem(
+                                                    value: t,
+                                                    child: Text(t),
+                                                  ))
+                                              .toList(),
+                                          onChanged: (val) {
+                                            setModalState(() {
+                                              field.type = val ?? 'Text';
+                                            });
+                                          },
+                                        ),
+                                        IconButton(
+                                          icon: Icon(
+                                            field.isRequired
+                                                ? Icons.star
+                                                : Icons.star_border,
+                                            color: field.isRequired
+                                                ? Colors.orange
+                                                : Colors.grey,
+                                          ),
+                                          tooltip: 'Toggle Required Field',
+                                          onPressed: () {
+                                            setModalState(() {
+                                              field.isRequired =
+                                                  !field.isRequired;
+                                            });
+                                          },
+                                        ),
+                                        if (formFields.length > 1)
+                                          IconButton(
+                                            icon: const Icon(Icons.delete,
+                                                color: Colors.red),
+                                            onPressed: () {
+                                              setModalState(() {
+                                                formFields.removeAt(idx);
+                                              });
+                                            },
+                                          ),
+                                      ],
+                                    ),
+                                  ],
+                                ),
                               ),
-                            ),
-                          ),
-                          IconButton(
-                            icon: const Icon(Icons.delete, color: Colors.red),
+                            );
+                          }).toList(),
+
+                          OutlinedButton.icon(
                             onPressed: () {
                               setModalState(() {
-                                _removeCustomField(idx);
+                                formFields.add(CustomFieldConfig(
+                                    name: 'Field ${formFields.length + 1}',
+                                    type: 'Text'));
                               });
                             },
+                            icon: const Icon(Icons.add),
+                            label: const Text('Add Field Schema'),
+                          ),
+
+                          const SizedBox(height: 20),
+                          const Text(
+                            '2. Open Generated Form to Input Data:',
+                            style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                color: Colors.blueGrey),
+                          ),
+                          const SizedBox(height: 10),
+
+                          SizedBox(
+                            width: double.infinity,
+                            child: ElevatedButton.icon(
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.blue.shade700,
+                                foregroundColor: Colors.white,
+                              ),
+                              icon: const Icon(Icons.article),
+                              label: const Text('Open & Fill Form'),
+                              onPressed: () {
+                                Navigator.pop(context);
+                                _openFilledFormDialog(formFields);
+                              },
+                            ),
                           ),
                         ],
                       ),
-                    );
-                  }).toList(),
-
-                  // Add Custom Field Button
-                  OutlinedButton.icon(
-                    onPressed: () {
-                      setModalState(() {
-                        _addCustomField();
-                      });
-                    },
-                    icon: const Icon(Icons.add),
-                    label: const Text('Add Blank Field'),
-                  ),
-                  const SizedBox(height: 20),
-
-                  // Save Button
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton.icon(
-                      icon: const Icon(Icons.save),
-                      label: const Text('Save Log'),
-                      onPressed: () async {
-                        // Custom fields များကို Map အဖြစ် စုစည်းခြင်း
-                        Map<String, String> extraData = {};
-                        for (var field in _customFields) {
-                          if (field['label']!.text.trim().isNotEmpty) {
-                            extraData[field['label']!.text.trim()] =
-                                field['value']!.text.trim();
-                          }
-                        }
-
-                        // Title မဖြည့်ထားပါက Auto Title သတ်မှတ်ခြင်း
-                        String finalTitle = _titleController.text.trim();
-                        if (finalTitle.isEmpty) {
-                          finalTitle =
-                              'Log Record (${DateTime.now().toString().substring(0, 16)})';
-                        }
-
-                        // Description JSON Format ပြင်ဆင်ခြင်း
-                        Map<String, dynamic> fullDesc = {
-                          'note': _descController.text.trim(),
-                          'custom_fields': extraData,
-                        };
-
-                        await DBHelper.insertLog({
-                          'title': finalTitle,
-                          'description': jsonEncode(fullDesc),
-                          'date': DateTime.now().toString(),
-                        });
-
-                        _titleController.clear();
-                        _descController.clear();
-                        _customFields.clear();
-
-                        if (mounted) Navigator.of(context).pop();
-                        _refreshLogs();
-                      },
                     ),
                   ),
                 ],
               ),
-            ),
-          );
-        },
-      ),
+            );
+          },
+        );
+      },
     );
   }
 
-  // Saved Log Display Parsing
+  // Generated Form view (Data Input)
+  void _openFilledFormDialog(List<CustomFieldConfig> schema) {
+    Map<String, TextEditingController> controllers = {
+      for (var s in schema) s.name: TextEditingController()
+    };
+
+    showDialog(
+      context: context,
+      builder: (dialogCtx) {
+        return AlertDialog(
+          title: const Row(
+            children: [
+              Icon(Icons.assignment, color: Colors.blue),
+              SizedBox(width: 8),
+              Text('Access Entry Form'),
+            ],
+          ),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: schema.map((field) {
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: TextField(
+                    controller: controllers[field.name],
+                    keyboardType: field.type == 'Number'
+                        ? TextInputType.number
+                        : TextInputType.text,
+                    decoration: InputDecoration(
+                      labelText:
+                          '${field.name}${field.isRequired ? " *" : ""}',
+                      border: const OutlineInputBorder(),
+                      suffixIcon: field.type == 'Date'
+                          ? IconButton(
+                              icon: const Icon(Icons.calendar_today),
+                              onPressed: () async {
+                                DateTime? picked = await showDatePicker(
+                                  context: dialogCtx,
+                                  initialDate: DateTime.now(),
+                                  firstDate: DateTime(2000),
+                                  lastDate: DateTime(2100),
+                                );
+                                if (picked != null) {
+                                  controllers[field.name]!.text =
+                                      picked.toString().split(' ')[0];
+                                }
+                              },
+                            )
+                          : null,
+                    ),
+                  ),
+                );
+              }).toList(),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogCtx),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                String mainTitle = controllers.values.first.text;
+                if (mainTitle.isEmpty) {
+                  mainTitle = 'Access Record (${DateTime.now().toString().substring(0, 10)})';
+                }
+
+                Map<String, String> dataResult = {};
+                controllers.forEach((key, ctrl) {
+                  dataResult[key] = ctrl.text;
+                });
+
+                Map<String, dynamic> fullData = {
+                  'type': 'Access_Form',
+                  'custom_fields': dataResult,
+                };
+
+                await DBHelper.insertLog({
+                  'title': mainTitle,
+                  'description': jsonEncode(fullData),
+                  'date': DateTime.now().toString(),
+                });
+
+                if (mounted) Navigator.pop(dialogCtx);
+                _refreshLogs();
+              },
+              child: const Text('Submit Record'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  // Display Subtitle Parsing
   Widget _buildLogSubtitle(String rawDesc) {
     try {
       Map<String, dynamic> data = jsonDecode(rawDesc);
-      String note = data['note'] ?? '';
       Map<String, dynamic> customFields = data['custom_fields'] ?? {};
 
       List<Widget> children = [];
-      if (note.isNotEmpty) {
-        children.add(Text(note));
-      }
       customFields.forEach((key, value) {
-        children.add(Text('$key: $value',
-            style: const TextStyle(fontWeight: FontWeight.w500)));
+        if (value.toString().isNotEmpty) {
+          children.add(Text('$key: $value',
+              style: const TextStyle(fontWeight: FontWeight.w500)));
+        }
       });
 
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
-        children: children,
+        children: children.isEmpty ? [Text(rawDesc)] : children,
       );
     } catch (e) {
       return Text(rawDesc);
     }
   }
 
-  // Theme Settings Dialog
+  // Settings Dialog
   void _showSettingsDialog() {
     showDialog(
       context: context,
@@ -322,8 +416,8 @@ class _LogListScreenState extends State<LogListScreen> {
             icon: const Icon(Icons.filter_list),
             tooltip: 'Menu Options',
             onSelected: (String value) {
-              if (value == 'add_log') {
-                _showForm(null);
+              if (value == 'create_form') {
+                _showAccessFormBuilder();
               } else if (value == 'settings') {
                 _showSettingsDialog();
               } else if (value == 'all') {
@@ -336,12 +430,12 @@ class _LogListScreenState extends State<LogListScreen> {
             },
             itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
               const PopupMenuItem<String>(
-                value: 'add_log',
+                value: 'create_form',
                 child: Row(
                   children: [
-                    Icon(Icons.add_circle_outline, color: Colors.blue),
+                    Icon(Icons.table_chart, color: Colors.blue),
                     SizedBox(width: 8),
-                    Text('Create New Log Form'),
+                    Text('Create Form (Access Style)'),
                   ],
                 ),
               ),
@@ -388,7 +482,8 @@ class _LogListScreenState extends State<LogListScreen> {
                 margin: const EdgeInsets.all(8),
                 child: ListTile(
                   title: Text(_logs[index]['title'] ?? ''),
-                  subtitle: _buildLogSubtitle(_logs[index]['description'] ?? ''),
+                  subtitle:
+                      _buildLogSubtitle(_logs[index]['description'] ?? ''),
                   trailing: IconButton(
                     icon: const Icon(Icons.delete, color: Colors.red),
                     onPressed: () async {
@@ -400,7 +495,7 @@ class _LogListScreenState extends State<LogListScreen> {
               ),
             ),
       floatingActionButton: FloatingActionButton(
-        onPressed: () => _showForm(null),
+        onPressed: () => _showAccessFormBuilder(),
         child: const Icon(Icons.add),
       ),
     );
