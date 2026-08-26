@@ -1,12 +1,11 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'db_helper.dart';
 import 'main.dart';
 
 class CustomFieldConfig {
   String name;
-  String type;
+  String type; // Text, Number, Date, Photo
   bool isRequired;
 
   CustomFieldConfig({
@@ -38,13 +37,12 @@ class LogListScreen extends StatefulWidget {
 
 class _LogListScreenState extends State<LogListScreen> {
   List<Map<String, dynamic>> _logs = [];
-  List<Map<String, dynamic>> _savedForms = [];
+  final List<Map<String, dynamic>> _savedForms = [];
 
   @override
   void initState() {
     super.initState();
     _refreshLogs();
-    _loadSavedForms();
   }
 
   void _refreshLogs() async {
@@ -52,28 +50,6 @@ class _LogListScreenState extends State<LogListScreen> {
     setState(() {
       _logs = data;
     });
-  }
-
-  // Saved Forms များကို SharedPreferences မှ ပြန်လည်ဖတ်ယူခြင်း
-  void _loadSavedForms() async {
-    final prefs = await SharedPreferences.getInstance();
-    final String? savedFormsString = prefs.getString('saved_forms_templates');
-    if (savedFormsString != null) {
-      try {
-        final List<dynamic> decoded = jsonDecode(savedFormsString);
-        setState(() {
-          _savedForms = decoded.cast<Map<String, dynamic>>();
-        });
-      } catch (e) {
-        debugPrint('Error loading saved forms: $e');
-      }
-    }
-  }
-
-  // Saved Forms များကို SharedPreferences သို့ သိမ်းဆည်းခြင်း
-  Future<void> _saveFormsToStorage(List<Map<String, dynamic>> forms) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('saved_forms_templates', jsonEncode(forms));
   }
 
   // Access Style Create New Form Builder
@@ -91,159 +67,153 @@ class _LogListScreenState extends State<LogListScreen> {
       builder: (builderContext) {
         return StatefulBuilder(
           builder: (BuildContext context, StateSetter setModalState) {
-            return Container(
-              height: MediaQuery.of(context).size.height * 0.85,
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      const Icon(Icons.design_services, color: Colors.blue),
-                      const SizedBox(width: 8),
-                      const Text(
-                        'Create New Form (Access Style)',
-                        style: TextStyle(
-                            fontSize: 18, fontWeight: FontWeight.bold),
-                      ),
-                      const Spacer(),
-                      IconButton(
-                        icon: const Icon(Icons.close),
-                        onPressed: () => Navigator.pop(context),
-                      )
-                    ],
-                  ),
-                  const Divider(),
-                  TextField(
-                    controller: formNameController,
-                    decoration: const InputDecoration(
-                      labelText: 'Form Title / Template Name',
-                      border: OutlineInputBorder(),
+            return Padding(
+              padding: EdgeInsets.only(
+                bottom: MediaQuery.of(context).viewInsets.bottom,
+              ),
+              child: Container(
+                height: MediaQuery.of(context).size.height * 0.85,
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        const Icon(Icons.design_services, color: Colors.blue),
+                        const SizedBox(width: 8),
+                        const Text(
+                          'Create New Form',
+                          style: TextStyle(
+                              fontSize: 18, fontWeight: FontWeight.bold),
+                        ),
+                        const Spacer(),
+                        IconButton(
+                          icon: const Icon(Icons.close),
+                          onPressed: () => Navigator.pop(context),
+                        )
+                      ],
                     ),
-                  ),
-                  const SizedBox(height: 15),
-                  Expanded(
-                    child: SingleChildScrollView(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text(
-                            'Design Form Fields:',
-                            style: TextStyle(
-                                fontWeight: FontWeight.bold,
-                                color: Colors.blueGrey),
-                          ),
-                          const SizedBox(height: 10),
-                          ...formFields.asMap().entries.map((entry) {
-                            int idx = entry.key;
-                            var field = entry.value;
-                            return Card(
-                              margin: const EdgeInsets.only(bottom: 8),
-                              child: Padding(
-                                padding: const EdgeInsets.all(8.0),
-                                child: Row(
-                                  children: [
-                                    Expanded(
-                                      child: TextField(
-                                        decoration: const InputDecoration(
-                                          labelText: 'Field Name',
-                                          isDense: true,
-                                        ),
-                                        controller: TextEditingController(
-                                            text: field.name)
-                                          ..selection = TextSelection
-                                              .fromPosition(TextPosition(
-                                                  offset: field.name.length)),
-                                        onChanged: (val) => field.name = val,
+                    const Divider(),
+                    TextField(
+                      controller: formNameController,
+                      decoration: const InputDecoration(
+                        labelText: 'Form Title / Template Name',
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                    const SizedBox(height: 15),
+                    const Text(
+                      'Design Form Fields:',
+                      style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: Colors.blueGrey),
+                    ),
+                    const SizedBox(height: 10),
+                    // Scrollable Area for Multiple Fields
+                    Expanded(
+                      child: ListView.builder(
+                        itemCount: formFields.length,
+                        itemBuilder: (context, idx) {
+                          var field = formFields[idx];
+                          return Card(
+                            margin: const EdgeInsets.only(bottom: 8),
+                            child: Padding(
+                              padding: const EdgeInsets.all(8.0),
+                              child: Row(
+                                children: [
+                                  Expanded(
+                                    child: TextField(
+                                      decoration: const InputDecoration(
+                                        labelText: 'Field Name',
+                                        isDense: true,
                                       ),
+                                      controller: TextEditingController(
+                                          text: field.name)
+                                        ..selection = TextSelection
+                                            .fromPosition(TextPosition(
+                                                offset: field.name.length)),
+                                      onChanged: (val) => field.name = val,
                                     ),
-                                    const SizedBox(width: 8),
-                                    DropdownButton<String>(
-                                      value: field.type,
-                                      items: ['Text', 'Number', 'Date']
-                                          .map((t) => DropdownMenuItem(
-                                                value: t,
-                                                child: Text(t),
-                                              ))
-                                          .toList(),
-                                      onChanged: (val) {
-                                        setModalState(() {
-                                          field.type = val ?? 'Text';
-                                        });
-                                      },
+                                  ),
+                                  const SizedBox(width: 8),
+                                  DropdownButton<String>(
+                                    value: field.type,
+                                    items: ['Text', 'Number', 'Date', 'Photo']
+                                        .map((t) => DropdownMenuItem(
+                                              value: t,
+                                              child: Text(t),
+                                            ))
+                                        .toList(),
+                                    onChanged: (val) {
+                                      setModalState(() {
+                                        field.type = val ?? 'Text';
+                                      });
+                                    },
+                                  ),
+                                  IconButton(
+                                    icon: Icon(
+                                      field.isRequired
+                                          ? Icons.star
+                                          : Icons.star_border,
+                                      color: field.isRequired
+                                          ? Colors.orange
+                                          : Colors.grey,
                                     ),
+                                    onPressed: () {
+                                      setModalState(() {
+                                        field.isRequired = !field.isRequired;
+                                      });
+                                    },
+                                  ),
+                                  if (formFields.length > 1)
                                     IconButton(
-                                      icon: Icon(
-                                        field.isRequired
-                                            ? Icons.star
-                                            : Icons.star_border,
-                                        color: field.isRequired
-                                            ? Colors.orange
-                                            : Colors.grey,
-                                      ),
+                                      icon: const Icon(Icons.delete,
+                                          color: Colors.red),
                                       onPressed: () {
                                         setModalState(() {
-                                          field.isRequired = !field.isRequired;
+                                          formFields.removeAt(idx);
                                         });
                                       },
                                     ),
-                                    if (formFields.length > 1)
-                                      IconButton(
-                                        icon: const Icon(Icons.delete,
-                                            color: Colors.red),
-                                        onPressed: () {
-                                          setModalState(() {
-                                            formFields.removeAt(idx);
-                                          });
-                                        },
-                                      ),
-                                  ],
-                                ),
+                                ],
                               ),
-                            );
-                          }).toList(),
-                          OutlinedButton.icon(
-                            onPressed: () {
-                              setModalState(() {
-                                formFields.add(CustomFieldConfig(
-                                    name: 'Field ${formFields.length + 1}',
-                                    type: 'Text'));
-                              });
-                            },
-                            icon: const Icon(Icons.add),
-                            label: const Text('Add Field Schema'),
-                          ),
-                        ],
+                            ),
+                          );
+                        },
                       ),
                     ),
-                  ),
-                  const SizedBox(height: 10),
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton.icon(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.blue.shade700,
-                        foregroundColor: Colors.white,
-                      ),
-                      icon: const Icon(Icons.save),
-                      label: const Text('Save Form Template to Desktop'),
-                      onPressed: () async {
-                        final updatedList = List<Map<String, dynamic>>.from(_savedForms);
-                        updatedList.add({
-                          'id': DateTime.now().millisecondsSinceEpoch,
-                          'title': formNameController.text,
-                          'fields': formFields
-                              .map((f) => f.toJson())
-                              .toList(),
+                    const SizedBox(height: 8),
+                    OutlinedButton.icon(
+                      onPressed: () {
+                        setModalState(() {
+                          formFields.add(CustomFieldConfig(
+                              name: 'Field ${formFields.length + 1}',
+                              type: 'Text'));
                         });
-
-                        await _saveFormsToStorage(updatedList);
-
-                        setState(() {
-                          _savedForms = updatedList;
-                        });
-
-                        if (mounted) {
+                      },
+                      icon: const Icon(Icons.add),
+                      label: const Text('Add Field Schema'),
+                    ),
+                    const SizedBox(height: 10),
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton.icon(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.blue.shade700,
+                          foregroundColor: Colors.white,
+                        ),
+                        icon: const Icon(Icons.save),
+                        label: const Text('Save Form Template to Desktop'),
+                        onPressed: () {
+                          setState(() {
+                            _savedForms.add({
+                              'id': DateTime.now().millisecondsSinceEpoch,
+                              'title': formNameController.text,
+                              'fields': formFields
+                                  .map((f) => f.toJson())
+                                  .toList(),
+                            });
+                          });
                           Navigator.pop(context);
                           ScaffoldMessenger.of(context).showSnackBar(
                             SnackBar(
@@ -251,11 +221,11 @@ class _LogListScreenState extends State<LogListScreen> {
                                   'Form "${formNameController.text}" Saved to Desktop!'),
                             ),
                           );
-                        }
-                      },
+                        },
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             );
           },
@@ -279,11 +249,24 @@ class _LogListScreenState extends State<LogListScreen> {
       context: context,
       builder: (dialogCtx) {
         return AlertDialog(
-          title: Text(formTemplate['title'] ?? 'Access Form Entry'),
+          title: Text(formTemplate['title'] ?? 'Form Entry'),
           content: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: schema.map((field) {
+                if (field.type == 'Photo') {
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: OutlinedButton.icon(
+                      onPressed: () {
+                        // Image Picker logic placeholder
+                        controllers[field.name]!.text = '[Photo Attached]';
+                      },
+                      icon: const Icon(Icons.camera_alt),
+                      label: Text('Attach ${field.name}'),
+                    ),
+                  );
+                }
                 return Padding(
                   padding: const EdgeInsets.only(bottom: 12),
                   child: TextField(
@@ -387,12 +370,9 @@ class _LogListScreenState extends State<LogListScreen> {
                         children: [
                           IconButton(
                             icon: const Icon(Icons.delete, color: Colors.red),
-                            onPressed: () async {
-                              final updatedList = List<Map<String, dynamic>>.from(_savedForms);
-                              updatedList.removeAt(index);
-                              await _saveFormsToStorage(updatedList);
+                            onPressed: () {
                               setState(() {
-                                _savedForms = updatedList;
+                                _savedForms.removeAt(index);
                               });
                               Navigator.pop(ctx);
                             },
@@ -420,7 +400,7 @@ class _LogListScreenState extends State<LogListScreen> {
     );
   }
 
-  // Display Subtitle Parsing
+  // Subtitle Parsing
   Widget _buildLogSubtitle(String rawDesc) {
     try {
       Map<String, dynamic> data = jsonDecode(rawDesc);
@@ -443,7 +423,7 @@ class _LogListScreenState extends State<LogListScreen> {
     }
   }
 
-  // Theme Settings Dialog
+  // Settings Dialog
   void _showSettingsDialog() {
     showDialog(
       context: context,
@@ -586,7 +566,7 @@ class _LogListScreenState extends State<LogListScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Desktop View: Saved Form Templates Cards
+            // Desktop View: Saved Form Shortcuts
             if (_savedForms.isNotEmpty) ...[
               const Padding(
                 padding: EdgeInsets.only(left: 12, top: 12, bottom: 4),
