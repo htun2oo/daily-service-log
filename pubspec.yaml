@@ -1,8 +1,39 @@
-dependencies:
-  flutter:
-    sdk: flutter
-  excel: ^4.0.3
-  pdf: ^3.10.8
-  printing: ^5.13.1
-  path_provider: ^2.1.2
-  permission_handler: ^11.3.1
+name: Build Android APK
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu'
+          java-version: '17'
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          cache: true
+
+      # Android structure အသစ်ကို Clean ဖြစ်အောင် အလိုအလျောက် ပြန်ဆောက်ပေးခြင်း
+      - name: Re-create Android Platform
+        run: |
+          flutter create . --platforms=android --org=com.dailyservicelog.app
+          flutter pub get
+
+      - name: Build Release APK
+        run: flutter build apk --release
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: daily-service-log-apk
+          path: build/app/outputs/flutter-apk/app-release.apk
