@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'db_helper.dart';
 import 'main.dart';
 
@@ -22,8 +23,8 @@ class CustomFieldConfig {
 
   factory CustomFieldConfig.fromJson(Map<String, dynamic> json) =>
       CustomFieldConfig(
-        name: json['name'],
-        type: json['type'],
+        name: json['name'] ?? '',
+        type: json['type'] ?? 'Text',
         isRequired: json['isRequired'] ?? false,
       );
 }
@@ -37,13 +38,13 @@ class LogListScreen extends StatefulWidget {
 
 class _LogListScreenState extends State<LogListScreen> {
   List<Map<String, dynamic>> _logs = [];
-  // Save လုပ်ထားသော Form Templates များကို သိမ်းဆည်းရန် List
   List<Map<String, dynamic>> _savedForms = [];
 
   @override
   void initState() {
     super.initState();
     _refreshLogs();
+    _loadSavedForms();
   }
 
   void _refreshLogs() async {
@@ -51,6 +52,28 @@ class _LogListScreenState extends State<LogListScreen> {
     setState(() {
       _logs = data;
     });
+  }
+
+  // Saved Forms များကို SharedPreferences မှ ပြန်လည်ဖတ်ယူခြင်း
+  void _loadSavedForms() async {
+    final prefs = await SharedPreferences.getInstance();
+    final String? savedFormsString = prefs.getString('saved_forms_templates');
+    if (savedFormsString != null) {
+      try {
+        final List<dynamic> decoded = jsonDecode(savedFormsString);
+        setState(() {
+          _savedForms = decoded.cast<Map<String, dynamic>>();
+        });
+      } catch (e) {
+        debugPrint('Error loading saved forms: $e');
+      }
+    }
+  }
+
+  // Saved Forms များကို SharedPreferences သို့ သိမ်းဆည်းခြင်း
+  Future<void> _saveFormsToStorage(List<Map<String, dynamic>> forms) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('saved_forms_templates', jsonEncode(forms));
   }
 
   // Access Style Create New Form Builder
@@ -204,23 +227,31 @@ class _LogListScreenState extends State<LogListScreen> {
                       ),
                       icon: const Icon(Icons.save),
                       label: const Text('Save Form Template to Desktop'),
-                      onPressed: () {
-                        setState(() {
-                          _savedForms.add({
-                            'id': DateTime.now().millisecondsSinceEpoch,
-                            'title': formNameController.text,
-                            'fields': formFields
-                                .map((f) => f.toJson())
-                                .toList(),
-                          });
+                      onPressed: () async {
+                        final updatedList = List<Map<String, dynamic>>.from(_savedForms);
+                        updatedList.add({
+                          'id': DateTime.now().millisecondsSinceEpoch,
+                          'title': formNameController.text,
+                          'fields': formFields
+                              .map((f) => f.toJson())
+                              .toList(),
                         });
-                        Navigator.pop(context);
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text(
-                                'Form "${formNameController.text}" Saved to Desktop!'),
-                          ),
-                        );
+
+                        await _saveFormsToStorage(updatedList);
+
+                        setState(() {
+                          _savedForms = updatedList;
+                        });
+
+                        if (mounted) {
+                          Navigator.pop(context);
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(
+                                  'Form "${formNameController.text}" Saved to Desktop!'),
+                            ),
+                          );
+                        }
                       },
                     ),
                   ),
@@ -235,8 +266,9 @@ class _LogListScreenState extends State<LogListScreen> {
 
   // Saved Form ဖြည့်စွက်ရန် Dialog
   void _openFilledFormDialog(Map<String, dynamic> formTemplate) {
-    List<CustomFieldConfig> schema = (formTemplate['fields'] as List)
-        .map((f) => CustomFieldConfig.fromJson(f))
+    List<dynamic> rawFields = formTemplate['fields'] ?? [];
+    List<CustomFieldConfig> schema = rawFields
+        .map((f) => CustomFieldConfig.fromJson(Map<String, dynamic>.from(f)))
         .toList();
 
     Map<String, TextEditingController> controllers = {
@@ -349,13 +381,30 @@ class _LogListScreenState extends State<LogListScreen> {
                     var item = _savedForms[index];
                     return ListTile(
                       leading: const Icon(Icons.article, color: Colors.blue),
-                      title: Text(item['title']),
-                      trailing: IconButton(
-                        icon: const Icon(Icons.arrow_forward_ios, size: 16),
-                        onPressed: () {
-                          Navigator.pop(ctx);
-                          _openFilledFormDialog(item);
-                        },
+                      title: Text(item['title'] ?? 'Form'),
+                      trailing: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          IconButton(
+                            icon: const Icon(Icons.delete, color: Colors.red),
+                            onPressed: () async {
+                              final updatedList = List<Map<String, dynamic>>.from(_savedForms);
+                              updatedList.removeAt(index);
+                              await _saveFormsToStorage(updatedList);
+                              setState(() {
+                                _savedForms = updatedList;
+                              });
+                              Navigator.pop(ctx);
+                            },
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.arrow_forward_ios, size: 16),
+                            onPressed: () {
+                              Navigator.pop(ctx);
+                              _openFilledFormDialog(item);
+                            },
+                          ),
+                        ],
                       ),
                     );
                   },
@@ -541,11 +590,11 @@ class _LogListScreenState extends State<LogListScreen> {
             if (_savedForms.isNotEmpty) ...[
               const Padding(
                 padding: EdgeInsets.only(left: 12, top: 12, bottom: 4),
-                style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.blueGrey),
-                child: Text('Desktop - Form Shortcuts'),
+                child: Text('Desktop - Form Shortcuts',
+                    style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.blueGrey)),
               ),
               SizedBox(
                 height: 90,
@@ -569,7 +618,7 @@ class _LogListScreenState extends State<LogListScreen> {
                                   color: Colors.blueAccent),
                               const SizedBox(height: 4),
                               Text(
-                                item['title'],
+                                item['title'] ?? 'Form',
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                                 style: const TextStyle(
