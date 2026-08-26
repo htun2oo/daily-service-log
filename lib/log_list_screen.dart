@@ -1,16 +1,16 @@
-import 'dart:convert';
+import 'dart021/convert';
 import 'package:flutter/material.dart';
 import 'db_helper.dart';
 import 'main.dart';
 
 class CustomFieldConfig {
   String name;
-  String type; // Text, Number, Date, Photo
+  String type; // Short Text, Long Text, Number, Long Number, Date, Photo, Attachment
   bool isRequired;
 
   CustomFieldConfig({
     required this.name,
-    this.type = 'Text',
+    this.type = 'Short Text',
     this.isRequired = false,
   });
 
@@ -23,7 +23,7 @@ class CustomFieldConfig {
   factory CustomFieldConfig.fromJson(Map<String, dynamic> json) =>
       CustomFieldConfig(
         name: json['name'] ?? '',
-        type: json['type'] ?? 'Text',
+        type: json['type'] ?? 'Short Text',
         isRequired: json['isRequired'] ?? false,
       );
 }
@@ -38,6 +38,17 @@ class LogListScreen extends StatefulWidget {
 class _LogListScreenState extends State<LogListScreen> {
   List<Map<String, dynamic>> _logs = [];
   final List<Map<String, dynamic>> _savedForms = [];
+
+  // Data Types စာရင်း အသစ်ပြင်ဆင်ထားခြင်း
+  final List<String> _dataTypes = [
+    'Short Text',
+    'Long Text',
+    'Number',
+    'Long Number',
+    'Date',
+    'Photo',
+    'Attachment',
+  ];
 
   @override
   void initState() {
@@ -65,7 +76,7 @@ class _LogListScreenState extends State<LogListScreen> {
           .toList();
     } else {
       formFields = [
-        CustomFieldConfig(name: 'Title', type: 'Text', isRequired: true),
+        CustomFieldConfig(name: 'Title', type: 'Short Text', isRequired: true),
       ];
     }
 
@@ -146,8 +157,10 @@ class _LogListScreenState extends State<LogListScreen> {
                                     ),
                                     const SizedBox(width: 8),
                                     DropdownButton<String>(
-                                      value: field.type,
-                                      items: ['Text', 'Number', 'Date', 'Photo']
+                                      value: _dataTypes.contains(field.type)
+                                          ? field.type
+                                          : 'Short Text',
+                                      items: _dataTypes
                                           .map((t) => DropdownMenuItem(
                                                 value: t,
                                                 child: Text(t),
@@ -155,7 +168,7 @@ class _LogListScreenState extends State<LogListScreen> {
                                           .toList(),
                                       onChanged: (val) {
                                         setModalState(() {
-                                          field.type = val ?? 'Text';
+                                          field.type = val ?? 'Short Text';
                                         });
                                       },
                                     ),
@@ -197,7 +210,7 @@ class _LogListScreenState extends State<LogListScreen> {
                           setModalState(() {
                             formFields.add(CustomFieldConfig(
                                 name: 'Field ${formFields.length + 1}',
-                                type: 'Text'));
+                                type: 'Short Text'));
                           });
                         },
                         icon: const Icon(Icons.add),
@@ -253,7 +266,7 @@ class _LogListScreenState extends State<LogListScreen> {
     );
   }
 
-  // Saved Form ဖြည့်စွက်ရန် Full Screen Dialog (SafeArea ဖြင့် ဖုန်း၏ Navigation Bar ကို မကွယ်စေရန် ပြုပြင်ထားသည်)
+  // Saved Form ဖြည့်စွက်ရန် Full Screen Dialog
   void _openFilledFormDialog(Map<String, dynamic> formTemplate) {
     List<dynamic> rawFields = formTemplate['fields'] ?? [];
     List<CustomFieldConfig> schema = rawFields
@@ -266,7 +279,7 @@ class _LogListScreenState extends State<LogListScreen> {
 
     showDialog(
       context: context,
-      useSafeArea: true, // Phone Screen Navigation Bar ကို ရှောင်ရှားရန်
+      useSafeArea: true,
       builder: (dialogCtx) {
         return Dialog.fullscreen(
           child: Scaffold(
@@ -277,7 +290,7 @@ class _LogListScreenState extends State<LogListScreen> {
                 onPressed: () => Navigator.pop(dialogCtx),
               ),
             ),
-            body: SafeArea( // Bottom Navigation Bar မကွယ်စေရန် SafeArea ထည့်သွင်းထားပါသည်
+            body: SafeArea(
               child: Padding(
                 padding: const EdgeInsets.all(16.0),
                 child: Column(
@@ -287,6 +300,8 @@ class _LogListScreenState extends State<LogListScreen> {
                         itemCount: schema.length,
                         itemBuilder: (context, index) {
                           var field = schema[index];
+
+                          // Photo Field UI
                           if (field.type == 'Photo') {
                             return Padding(
                               padding: const EdgeInsets.only(bottom: 16),
@@ -298,20 +313,44 @@ class _LogListScreenState extends State<LogListScreen> {
                                   controllers[field.name]!.text = '[Photo Attached]';
                                 },
                                 icon: const Icon(Icons.camera_alt),
-                                label: Text('Attach ${field.name}'),
+                                label: Text('Attach ${field.name} (Photo)'),
                               ),
                             );
                           }
+
+                          // Attachment Field UI (အသစ်ဖြည့်စွက်ထားသည်)
+                          if (field.type == 'Attachment') {
+                            return Padding(
+                              padding: const EdgeInsets.only(bottom: 16),
+                              child: OutlinedButton.icon(
+                                style: OutlinedButton.styleFrom(
+                                  padding: const EdgeInsets.symmetric(vertical: 16),
+                                ),
+                                onPressed: () {
+                                  controllers[field.name]!.text = '[File Attached]';
+                                },
+                                icon: const Icon(Icons.attach_file),
+                                label: Text('Upload ${field.name} (File)'),
+                              ),
+                            );
+                          }
+
+                          // Text & Number Fields UI
+                          bool isLongText = field.type == 'Long Text';
+                          bool isNumber = field.type == 'Number' || field.type == 'Long Number';
+
                           return Padding(
                             padding: const EdgeInsets.only(bottom: 16),
                             child: TextField(
                               controller: controllers[field.name],
-                              keyboardType: field.type == 'Number'
+                              maxLines: isLongText ? 4 : 1, // Long Text ဖြစ်ပါက ၄ လိုင်းစာ ပေါ်မည်
+                              keyboardType: isNumber
                                   ? TextInputType.number
                                   : TextInputType.text,
                               decoration: InputDecoration(
                                 labelText:
                                     '${field.name}${field.isRequired ? " *" : ""}',
+                                hintText: field.type == 'Long Number' ? 'Enter large numbers' : null,
                                 border: const OutlineInputBorder(),
                                 suffixIcon: field.type == 'Date'
                                     ? IconButton(
@@ -396,7 +435,7 @@ class _LogListScreenState extends State<LogListScreen> {
     );
   }
 
-  // Saved Forms Select/Edit Dialog Window
+  // Saved Form Select/Edit Dialog Window
   void _showSelectOrEditFormDialog({bool isEditMode = false}) {
     showDialog(
       context: context,
@@ -657,7 +696,6 @@ class _LogListScreenState extends State<LogListScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Saved Form Horizontal Cards
               if (_savedForms.isNotEmpty) ...[
                 const SizedBox(height: 8),
                 SizedBox(
@@ -699,8 +737,6 @@ class _LogListScreenState extends State<LogListScreen> {
                 ),
                 const Divider(),
               ],
-
-              // Main Service Logs List
               const Padding(
                 padding: EdgeInsets.only(left: 12, top: 8, bottom: 4),
                 child: Text('Service Logs',
