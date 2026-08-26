@@ -118,7 +118,6 @@ class _LogListScreenState extends State<LogListScreen> {
                           color: Colors.blueGrey),
                     ),
                     const SizedBox(height: 10),
-                    // Scrollable Area for Multiple Fields
                     Expanded(
                       child: ListView.builder(
                         itemCount: formFields.length,
@@ -252,7 +251,7 @@ class _LogListScreenState extends State<LogListScreen> {
     );
   }
 
-  // Saved Form ဖြည့်စွက်ရန် Dialog
+  // Saved Form ဖြည့်စွက်ရန် Full Screen Dialog
   void _openFilledFormDialog(Map<String, dynamic> formTemplate) {
     List<dynamic> rawFields = formTemplate['fields'] ?? [];
     List<CustomFieldConfig> schema = rawFields
@@ -265,94 +264,125 @@ class _LogListScreenState extends State<LogListScreen> {
 
     showDialog(
       context: context,
+      useSafeArea: false, // Phone Screen အပြည့် ဖြစ်စေရန်
       builder: (dialogCtx) {
-        return AlertDialog(
-          title: Text(formTemplate['title'] ?? 'Form Entry'),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: schema.map((field) {
-                if (field.type == 'Photo') {
-                  return Padding(
-                    padding: const EdgeInsets.only(bottom: 12),
-                    child: OutlinedButton.icon(
-                      onPressed: () {
-                        controllers[field.name]!.text = '[Photo Attached]';
-                      },
-                      icon: const Icon(Icons.camera_alt),
-                      label: Text('Attach ${field.name}'),
-                    ),
-                  );
-                }
-                return Padding(
-                  padding: const EdgeInsets.only(bottom: 12),
-                  child: TextField(
-                    controller: controllers[field.name],
-                    keyboardType: field.type == 'Number'
-                        ? TextInputType.number
-                        : TextInputType.text,
-                    decoration: InputDecoration(
-                      labelText:
-                          '${field.name}${field.isRequired ? " *" : ""}',
-                      border: const OutlineInputBorder(),
-                      suffixIcon: field.type == 'Date'
-                          ? IconButton(
-                              icon: const Icon(Icons.calendar_today),
-                              onPressed: () async {
-                                DateTime? picked = await showDatePicker(
-                                  context: dialogCtx,
-                                  initialDate: DateTime.now(),
-                                  firstDate: DateTime(2000),
-                                  lastDate: DateTime(2100),
-                                );
-                                if (picked != null) {
-                                  controllers[field.name]!.text =
-                                      picked.toString().split(' ')[0];
-                                }
+        return Dialog.fullscreen(
+          child: Scaffold(
+            appBar: AppBar(
+              title: Text(formTemplate['title'] ?? 'Form Entry'),
+              leading: IconButton(
+                icon: const Icon(Icons.close),
+                onPressed: () => Navigator.pop(dialogCtx),
+              ),
+            ),
+            body: Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                children: [
+                  Expanded(
+                    child: ListView.builder(
+                      itemCount: schema.length,
+                      itemBuilder: (context, index) {
+                        var field = schema[index];
+                        if (field.type == 'Photo') {
+                          return Padding(
+                            padding: const EdgeInsets.only(bottom: 16),
+                            child: OutlinedButton.icon(
+                              style: OutlinedButton.styleFrom(
+                                padding: const EdgeInsets.symmetric(vertical: 16),
+                              ),
+                              onPressed: () {
+                                controllers[field.name]!.text = '[Photo Attached]';
                               },
-                            )
-                          : null,
+                              icon: const Icon(Icons.camera_alt),
+                              label: Text('Attach ${field.name}'),
+                            ),
+                          );
+                        }
+                        return Padding(
+                          padding: const EdgeInsets.only(bottom: 16),
+                          child: TextField(
+                            controller: controllers[field.name],
+                            keyboardType: field.type == 'Number'
+                                ? TextInputType.number
+                                : TextInputType.text,
+                            decoration: InputDecoration(
+                              labelText:
+                                  '${field.name}${field.isRequired ? " *" : ""}',
+                              border: const OutlineInputBorder(),
+                              suffixIcon: field.type == 'Date'
+                                  ? IconButton(
+                                      icon: const Icon(Icons.calendar_today),
+                                      onPressed: () async {
+                                        DateTime? picked = await showDatePicker(
+                                          context: dialogCtx,
+                                          initialDate: DateTime.now(),
+                                          firstDate: DateTime(2000),
+                                          lastDate: DateTime(2100),
+                                        );
+                                        if (picked != null) {
+                                          controllers[field.name]!.text =
+                                              picked.toString().split(' ')[0];
+                                        }
+                                      },
+                                    )
+                                  : null,
+                            ),
+                          ),
+                        );
+                      },
                     ),
                   ),
-                );
-              }).toList(),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton(
+                          onPressed: () => Navigator.pop(dialogCtx),
+                          child: const Text('Cancel'),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: ElevatedButton(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.blue.shade700,
+                            foregroundColor: Colors.white,
+                          ),
+                          onPressed: () async {
+                            String mainTitle = controllers.values.first.text;
+                            if (mainTitle.isEmpty) {
+                              mainTitle =
+                                  '${formTemplate['title']} Entry (${DateTime.now().toString().substring(0, 10)})';
+                            }
+
+                            Map<String, String> dataResult = {};
+                            controllers.forEach((key, ctrl) {
+                              dataResult[key] = ctrl.text;
+                            });
+
+                            Map<String, dynamic> fullData = {
+                              'type': formTemplate['title'],
+                              'custom_fields': dataResult,
+                            };
+
+                            await DBHelper.insertLog({
+                              'title': mainTitle,
+                              'description': jsonEncode(fullData),
+                              'date': DateTime.now().toString(),
+                            });
+
+                            if (mounted) Navigator.pop(dialogCtx);
+                            _refreshLogs();
+                          },
+                          child: const Text('Submit Record'),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
             ),
           ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(dialogCtx),
-              child: const Text('Cancel'),
-            ),
-            ElevatedButton(
-              onPressed: () async {
-                String mainTitle = controllers.values.first.text;
-                if (mainTitle.isEmpty) {
-                  mainTitle =
-                      '${formTemplate['title']} Entry (${DateTime.now().toString().substring(0, 10)})';
-                }
-
-                Map<String, String> dataResult = {};
-                controllers.forEach((key, ctrl) {
-                  dataResult[key] = ctrl.text;
-                });
-
-                Map<String, dynamic> fullData = {
-                  'type': formTemplate['title'],
-                  'custom_fields': dataResult,
-                };
-
-                await DBHelper.insertLog({
-                  'title': mainTitle,
-                  'description': jsonEncode(fullData),
-                  'date': DateTime.now().toString(),
-                });
-
-                if (mounted) Navigator.pop(dialogCtx);
-                _refreshLogs();
-              },
-              child: const Text('Submit Record'),
-            ),
-          ],
         );
       },
     );
@@ -618,7 +648,7 @@ class _LogListScreenState extends State<LogListScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Saved Form Horizontal Cards (Shortcuts Text ဖြုတ်ထားပါသည်)
+            // Saved Form Horizontal Cards
             if (_savedForms.isNotEmpty) ...[
               const SizedBox(height: 8),
               SizedBox(
