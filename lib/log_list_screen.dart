@@ -1,4 +1,4 @@
-import 'dart:convert';
+import 'dart0:convert';
 import 'package:flutter/material.dart';
 import 'db_helper.dart';
 import 'main.dart';
@@ -52,13 +52,22 @@ class _LogListScreenState extends State<LogListScreen> {
     });
   }
 
-  // Access Style Create New Form Builder
-  void _showAccessFormBuilder() {
-    TextEditingController formNameController =
-        TextEditingController(text: 'New Form Template');
-    List<CustomFieldConfig> formFields = [
-      CustomFieldConfig(name: 'Title', type: 'Text', isRequired: true),
-    ];
+  // Create or Edit Form Builder Window
+  void _showAccessFormBuilder({Map<String, dynamic>? existingForm, int? editIndex}) {
+    TextEditingController formNameController = TextEditingController(
+        text: existingForm != null ? existingForm['title'] : 'New Form Template');
+
+    List<CustomFieldConfig> formFields = [];
+    if (existingForm != null && existingForm['fields'] != null) {
+      List<dynamic> rawFields = existingForm['fields'];
+      formFields = rawFields
+          .map((f) => CustomFieldConfig.fromJson(Map<String, dynamic>.from(f)))
+          .toList();
+    } else {
+      formFields = [
+        CustomFieldConfig(name: 'Title', type: 'Text', isRequired: true),
+      ];
+    }
 
     showModalBottomSheet(
       context: context,
@@ -81,9 +90,9 @@ class _LogListScreenState extends State<LogListScreen> {
                       children: [
                         const Icon(Icons.design_services, color: Colors.blue),
                         const SizedBox(width: 8),
-                        const Text(
-                          'Create New Form',
-                          style: TextStyle(
+                        Text(
+                          existingForm != null ? 'Edit Form' : 'Create New Form',
+                          style: const TextStyle(
                               fontSize: 18, fontWeight: FontWeight.bold),
                         ),
                         const Spacer(),
@@ -203,22 +212,31 @@ class _LogListScreenState extends State<LogListScreen> {
                           foregroundColor: Colors.white,
                         ),
                         icon: const Icon(Icons.save),
-                        label: const Text('Save Form Template to Desktop'),
+                        label: Text(existingForm != null
+                            ? 'Update Form Template'
+                            : 'Save Form Template'),
                         onPressed: () {
                           setState(() {
-                            _savedForms.add({
-                              'id': DateTime.now().millisecondsSinceEpoch,
+                            Map<String, dynamic> updatedFormData = {
+                              'id': existingForm != null
+                                  ? existingForm['id']
+                                  : DateTime.now().millisecondsSinceEpoch,
                               'title': formNameController.text,
-                              'fields': formFields
-                                  .map((f) => f.toJson())
-                                  .toList(),
-                            });
+                              'fields':
+                                  formFields.map((f) => f.toJson()).toList(),
+                            };
+
+                            if (editIndex != null && editIndex >= 0) {
+                              _savedForms[editIndex] = updatedFormData;
+                            } else {
+                              _savedForms.add(updatedFormData);
+                            }
                           });
                           Navigator.pop(context);
                           ScaffoldMessenger.of(context).showSnackBar(
                             SnackBar(
                               content: Text(
-                                  'Form "${formNameController.text}" Saved to Desktop!'),
+                                  'Form "${formNameController.text}" Saved!'),
                             ),
                           );
                         },
@@ -259,7 +277,6 @@ class _LogListScreenState extends State<LogListScreen> {
                     padding: const EdgeInsets.only(bottom: 12),
                     child: OutlinedButton.icon(
                       onPressed: () {
-                        // Image Picker logic placeholder
                         controllers[field.name]!.text = '[Photo Attached]';
                       },
                       icon: const Icon(Icons.camera_alt),
@@ -341,16 +358,17 @@ class _LogListScreenState extends State<LogListScreen> {
     );
   }
 
-  // Saved Forms List Modal
-  void _showSavedFormsDialog() {
+  // Saved Forms Select/Edit Dialog Window
+  void _showSelectOrEditFormDialog({bool isEditMode = false}) {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Row(
+        title: Row(
           children: [
-            Icon(Icons.folder_special, color: Colors.blue),
-            SizedBox(width: 8),
-            Text('Saved Form Templates'),
+            Icon(isEditMode ? Icons.edit_document : Icons.folder_special,
+                color: Colors.blue),
+            const SizedBox(width: 8),
+            Text(isEditMode ? 'Select Form to Edit' : 'Saved Form Templates'),
           ],
         ),
         content: _savedForms.isEmpty
@@ -365,27 +383,49 @@ class _LogListScreenState extends State<LogListScreen> {
                     return ListTile(
                       leading: const Icon(Icons.article, color: Colors.blue),
                       title: Text(item['title'] ?? 'Form'),
-                      trailing: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          IconButton(
-                            icon: const Icon(Icons.delete, color: Colors.red),
-                            onPressed: () {
-                              setState(() {
-                                _savedForms.removeAt(index);
-                              });
+                      trailing: isEditMode
+                          ? IconButton(
+                              icon: const Icon(Icons.edit, color: Colors.orange),
+                              onPressed: () {
+                                Navigator.pop(ctx);
+                                _showAccessFormBuilder(
+                                  existingForm: item,
+                                  editIndex: index,
+                                );
+                              },
+                            )
+                          : Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                IconButton(
+                                  icon: const Icon(Icons.delete,
+                                      color: Colors.red),
+                                  onPressed: () {
+                                    setState(() {
+                                      _savedForms.removeAt(index);
+                                    });
+                                    Navigator.pop(ctx);
+                                  },
+                                ),
+                                IconButton(
+                                  icon: const Icon(Icons.arrow_forward_ios,
+                                      size: 16),
+                                  onPressed: () {
+                                    Navigator.pop(ctx);
+                                    _openFilledFormDialog(item);
+                                  },
+                                ),
+                              ],
+                            ),
+                      onTap: isEditMode
+                          ? () {
                               Navigator.pop(ctx);
-                            },
-                          ),
-                          IconButton(
-                            icon: const Icon(Icons.arrow_forward_ios, size: 16),
-                            onPressed: () {
-                              Navigator.pop(ctx);
-                              _openFilledFormDialog(item);
-                            },
-                          ),
-                        ],
-                      ),
+                              _showAccessFormBuilder(
+                                existingForm: item,
+                                editIndex: index,
+                              );
+                            }
+                          : null,
                     );
                   },
                 ),
@@ -508,8 +548,10 @@ class _LogListScreenState extends State<LogListScreen> {
             onSelected: (String value) {
               if (value == 'create_new_form') {
                 _showAccessFormBuilder();
+              } else if (value == 'edit_form') {
+                _showSelectOrEditFormDialog(isEditMode: true);
               } else if (value == 'saved_forms') {
-                _showSavedFormsDialog();
+                _showSelectOrEditFormDialog(isEditMode: false);
               } else if (value == 'settings') {
                 _showSettingsDialog();
               } else if (value == 'all') {
@@ -524,6 +566,16 @@ class _LogListScreenState extends State<LogListScreen> {
                     Icon(Icons.design_services, color: Colors.blue),
                     SizedBox(width: 8),
                     Text('Create New Form'),
+                  ],
+                ),
+              ),
+              const PopupMenuItem<String>(
+                value: 'edit_form',
+                child: Row(
+                  children: [
+                    Icon(Icons.edit, color: Colors.orange),
+                    SizedBox(width: 8),
+                    Text('Edit Form'),
                   ],
                 ),
               ),
@@ -566,18 +618,11 @@ class _LogListScreenState extends State<LogListScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Desktop View: Saved Form Shortcuts
+            // Saved Form Horizontal Cards (Shortcuts Text ဖြုတ်ထားပါသည်)
             if (_savedForms.isNotEmpty) ...[
-              const Padding(
-                padding: EdgeInsets.only(left: 12, top: 12, bottom: 4),
-                child: Text('Desktop - Form Shortcuts',
-                    style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.blueGrey)),
-              ),
+              const SizedBox(height: 8),
               SizedBox(
-                height: 90,
+                height: 80,
                 child: ListView.builder(
                   scrollDirection: Axis.horizontal,
                   padding: const EdgeInsets.symmetric(horizontal: 8),
@@ -589,7 +634,7 @@ class _LogListScreenState extends State<LogListScreen> {
                       child: InkWell(
                         onTap: () => _openFilledFormDialog(item),
                         child: Container(
-                          width: 140,
+                          width: 130,
                           padding: const EdgeInsets.all(8),
                           child: Column(
                             mainAxisAlignment: MainAxisAlignment.center,
