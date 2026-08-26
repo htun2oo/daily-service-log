@@ -1,17 +1,20 @@
-name: Build Android APK
+name: Build Release APK
 
 on:
   push:
-    branches: [ main, master ]
-  workflow_dispatch:
+    branches: [ "main", "master" ]
+  pull_request:
+    branches: [ "main", "master" ]
 
 jobs:
   build:
     runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
 
-      - name: Set up Java
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Java JDK
         uses: actions/setup-java@v4
         with:
           distribution: 'zulu'
@@ -20,20 +23,20 @@ jobs:
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
+          flutter-version: '3.19.x'
           channel: 'stable'
-          cache: true
 
-      # Android structure အသစ်ကို Clean ဖြစ်အောင် အလိုအလျောက် ပြန်ဆောက်ပေးခြင်း
       - name: Re-create Android Platform
-        run: |
-          flutter create . --platforms=android --org=com.dailyservicelog.app
-          flutter pub get
+        run: flutter create . --platforms=android --org=com.dailyservicelog.app --project-name=daily_service_log
+
+      - name: Get Dependencies
+        run: flutter pub get
 
       - name: Build Release APK
         run: flutter build apk --release
 
-      - name: Upload APK
+      - name: Upload Release APK
         uses: actions/upload-artifact@v4
         with:
-          name: daily-service-log-apk
+          name: release-apk
           path: build/app/outputs/flutter-apk/app-release.apk
