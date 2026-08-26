@@ -81,7 +81,21 @@ class _LogListScreenState extends State<LogListScreen> {
     return true;
   }
 
-  // Export to Excel Function
+  // ဖုန်း Storage (Download သို့မဟုတ် App Document Folder) လမ်းကြောင်း ရယူရန်
+  Future<String> _getStoragePath() async {
+    Directory? directory;
+    if (Platform.isAndroid) {
+      directory = Directory('/storage/emulated/0/Download');
+      if (!await directory.exists()) {
+        directory = await getExternalStorageDirectory();
+      }
+    } else {
+      directory = await getApplicationDocumentsDirectory();
+    }
+    return directory?.path ?? (await getApplicationDocumentsDirectory()).path;
+  }
+
+  // 1. Logs များကို ဖုန်းအတွင်း Excel (.xlsx) အဖြစ် သိမ်းဆည်းရန်
   Future<void> _exportToExcel() async {
     if (_logs.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -96,7 +110,7 @@ class _LogListScreenState extends State<LogListScreen> {
     excel_lib.Sheet sheetObject = excel['Daily Service Logs'];
     excel.delete('Sheet1');
 
-    // Header
+    // Header Row
     sheetObject.appendRow([
       excel_lib.TextCellValue('ID'),
       excel_lib.TextCellValue('Title'),
@@ -116,27 +130,86 @@ class _LogListScreenState extends State<LogListScreen> {
 
     var fileBytes = excel.save();
     if (fileBytes != null) {
-      Directory? directory = await getExternalStorageDirectory();
-      String path = directory?.path ?? (await getApplicationDocumentsDirectory()).path;
-      String filePath = "$path/Daily_Service_Logs_${DateTime.now().millisecondsSinceEpoch}.xlsx";
+      String basePath = await _getStoragePath();
+      String filePath = "$basePath/Daily_Service_Logs_${DateTime.now().millisecondsSinceEpoch}.xlsx";
       
-      File(filePath)
-        ..createSync(recursive: true)
-        ..writeAsBytesSync(fileBytes);
+      File file = File(filePath);
+      await file.create(recursive: true);
+      await file.writeAsBytes(fileBytes);
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Exported to Excel: $filePath')),
+          SnackBar(
+            content: Text('Excel File ကို ဖုန်းအတွင်း သိမ်းဆည်းပြီးပါပြီ - $filePath'),
+            duration: const Duration(seconds: 4),
+          ),
         );
       }
     }
   }
 
-  // Export & Print PDF Function
-  Future<void> _exportToPDF() async {
+  // 2. Logs များကို ဖုန်းအတွင်း PDF (.pdf) အဖြစ် သိမ်းဆည်းရန်
+  Future<void> _savePDFToPhone() async {
     if (_logs.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No log data to export.')),
+        const SnackBar(content: Text('No log data to save.')),
+      );
+      return;
+    }
+
+    await _requestPermission();
+
+    final pdf = pw.Document();
+
+    pdf.addPage(
+      pw.Page(
+        pageFormat: PdfPageFormat.a4,
+        build: (pw.Context context) {
+          return pw.Column(
+            crossAxisAlignment: pw.CrossAxisAlignment.start,
+            children: [
+              pw.Text('Daily Service Logs Report',
+                  style: pw.TextStyle(fontSize: 20, fontWeight: pw.FontWeight.bold)),
+              pw.SizedBox(height: 10),
+              pw.Table.fromTextArray(
+                headers: ['ID', 'Title', 'Date'],
+                data: _logs
+                    .map((log) => [
+                          log['id'].toString(),
+                          log['title']?.toString() ?? '',
+                          log['date']?.toString().substring(0, 10) ?? ''
+                        ])
+                    .toList(),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+
+    final bytes = await pdf.save();
+    String basePath = await _getStoragePath();
+    String filePath = "$basePath/Daily_Service_Logs_${DateTime.now().millisecondsSinceEpoch}.pdf";
+
+    File file = File(filePath);
+    await file.create(recursive: true);
+    await file.writeAsBytes(bytes);
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('PDF File ကို ဖုန်းအတွင်း သိမ်းဆည်းပြီးပါပြီ - $filePath'),
+          duration: const Duration(seconds: 4),
+        ),
+      );
+    }
+  }
+
+  // 3. PDF တိုက်ရိုက် Print ထုတ်ရန် သို့မဟုတ် Share လုပ်ရန်
+  Future<void> _printPDF() async {
+    if (_logs.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No log data to print.')),
       );
       return;
     }
@@ -148,7 +221,7 @@ class _LogListScreenState extends State<LogListScreen> {
         pageFormat: PdfPageFormat.a4,
         build: (pw.Context context) {
           return pw.Column(
-            crossAxisAlignment: pw.CrossAxisAlignment.start, // cross နေရာတွင် crossAxisAlignment ဟု ပြောင်းပါ
+            crossAxisAlignment: pw.CrossAxisAlignment.start,
             children: [
               pw.Text('Daily Service Logs Report',
                   style: pw.TextStyle(fontSize: 20, fontWeight: pw.FontWeight.bold)),
@@ -173,8 +246,8 @@ class _LogListScreenState extends State<LogListScreen> {
       onLayout: (PdfPageFormat format) async => pdf.save(),
     );
   }
-  
-  // Database Tools Dialog (Clear / Reset Data)
+
+  // Database Tools Dialog
   void _showDatabaseToolsDialog() {
     showDialog(
       context: context,
@@ -504,7 +577,7 @@ class _LogListScreenState extends State<LogListScreen> {
                             padding: const EdgeInsets.only(bottom: 16),
                             child: TextField(
                               controller: controllers[field.name],
-                              maxLines: isLongText ? 10 : 1, // Long Text ကို maxLines: 10 သို့ ပြောင်းထားသည်
+                              maxLines: isLongText ? 10 : 1,
                               keyboardType: isNumber
                                   ? TextInputType.number
                                   : TextInputType.multiline,
@@ -786,10 +859,12 @@ class _LogListScreenState extends State<LogListScreen> {
                 _showSelectOrEditFormDialog(isEditMode: true);
               } else if (value == 'saved_forms') {
                 _showSelectOrEditFormDialog(isEditMode: false);
-              } else if (value == 'export_excel') {
+              } else if (value == 'save_excel_phone') {
                 _exportToExcel();
-              } else if (value == 'export_pdf') {
-                _exportToPDF();
+              } else if (value == 'save_pdf_phone') {
+                _savePDFToPhone();
+              } else if (value == 'print_pdf') {
+                _printPDF();
               } else if (value == 'db_tools') {
                 _showDatabaseToolsDialog();
               } else if (value == 'settings') {
@@ -831,22 +906,32 @@ class _LogListScreenState extends State<LogListScreen> {
               ),
               const PopupMenuDivider(),
               const PopupMenuItem<String>(
-                value: 'export_excel',
+                value: 'save_excel_phone',
                 child: Row(
                   children: [
-                    Icon(Icons.table_chart, color: Colors.green),
+                    Icon(Icons.description, color: Colors.green),
                     SizedBox(width: 8),
-                    Text('Export to Excel'),
+                    Text('Save Logs to Phone (Excel)'),
                   ],
                 ),
               ),
               const PopupMenuItem<String>(
-                value: 'export_pdf',
+                value: 'save_pdf_phone',
                 child: Row(
                   children: [
                     Icon(Icons.picture_as_pdf, color: Colors.red),
                     SizedBox(width: 8),
-                    Text('Export / Print PDF'),
+                    Text('Save Logs to Phone (PDF)'),
+                  ],
+                ),
+              ),
+              const PopupMenuItem<String>(
+                value: 'print_pdf',
+                child: Row(
+                  children: [
+                    Icon(Icons.print, color: Colors.purple),
+                    SizedBox(width: 8),
+                    Text('Print / Preview PDF'),
                   ],
                 ),
               ),
