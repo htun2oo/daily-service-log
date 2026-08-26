@@ -5,16 +5,27 @@ import 'main.dart';
 
 class CustomFieldConfig {
   String name;
-  String type; // Text, Number, Date, Selection
+  String type;
   bool isRequired;
-  List<String> options;
 
   CustomFieldConfig({
     required this.name,
     this.type = 'Text',
     this.isRequired = false,
-    List<String>? options,
-  }) : options = options ?? [];
+  });
+
+  Map<String, dynamic> toJson() => {
+        'name': name,
+        'type': type,
+        'isRequired': isRequired,
+      };
+
+  factory CustomFieldConfig.fromJson(Map<String, dynamic> json) =>
+      CustomFieldConfig(
+        name: json['name'],
+        type: json['type'],
+        isRequired: json['isRequired'] ?? false,
+      );
 }
 
 class LogListScreen extends StatefulWidget {
@@ -26,6 +37,8 @@ class LogListScreen extends StatefulWidget {
 
 class _LogListScreenState extends State<LogListScreen> {
   List<Map<String, dynamic>> _logs = [];
+  // Save လုပ်ထားသော Form Templates များကို သိမ်းဆည်းရန် List
+  List<Map<String, dynamic>> _savedForms = [];
 
   @override
   void initState() {
@@ -40,10 +53,12 @@ class _LogListScreenState extends State<LogListScreen> {
     });
   }
 
-  // MS Access Style Form Builder & Dynamic Data Entry Screen
+  // Access Style Create New Form Builder
   void _showAccessFormBuilder() {
+    TextEditingController formNameController =
+        TextEditingController(text: 'New Form Template');
     List<CustomFieldConfig> formFields = [
-      CustomFieldConfig(name: 'Title / Subject', type: 'Text', isRequired: true),
+      CustomFieldConfig(name: 'Title', type: 'Text', isRequired: true),
     ];
 
     showModalBottomSheet(
@@ -61,10 +76,10 @@ class _LogListScreenState extends State<LogListScreen> {
                 children: [
                   Row(
                     children: [
-                      const Icon(Icons.table_chart_outlined, color: Colors.blue),
+                      const Icon(Icons.design_services, color: Colors.blue),
                       const SizedBox(width: 8),
                       const Text(
-                        'MS Access Style - Create Form',
+                        'Create New Form (Access Style)',
                         style: TextStyle(
                             fontSize: 18, fontWeight: FontWeight.bold),
                       ),
@@ -76,20 +91,26 @@ class _LogListScreenState extends State<LogListScreen> {
                     ],
                   ),
                   const Divider(),
+                  TextField(
+                    controller: formNameController,
+                    decoration: const InputDecoration(
+                      labelText: 'Form Title / Template Name',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                  const SizedBox(height: 15),
                   Expanded(
                     child: SingleChildScrollView(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           const Text(
-                            '1. Design Form Fields (Data Schema):',
+                            'Design Form Fields:',
                             style: TextStyle(
                                 fontWeight: FontWeight.bold,
                                 color: Colors.blueGrey),
                           ),
                           const SizedBox(height: 10),
-
-                          // Field Builder List
                           ...formFields.asMap().entries.map((entry) {
                             int idx = entry.key;
                             var field = entry.value;
@@ -97,76 +118,67 @@ class _LogListScreenState extends State<LogListScreen> {
                               margin: const EdgeInsets.only(bottom: 8),
                               child: Padding(
                                 padding: const EdgeInsets.all(8.0),
-                                child: Column(
+                                child: Row(
                                   children: [
-                                    Row(
-                                      children: [
-                                        Expanded(
-                                          child: TextField(
-                                            decoration: const InputDecoration(
-                                              labelText: 'Field Name',
-                                              isDense: true,
-                                            ),
-                                            controller: TextEditingController(
-                                                text: field.name)
-                                              ..selection = TextSelection
-                                                  .fromPosition(TextPosition(
-                                                      offset:
-                                                          field.name.length)),
-                                            onChanged: (val) =>
-                                                field.name = val,
-                                          ),
+                                    Expanded(
+                                      child: TextField(
+                                        decoration: const InputDecoration(
+                                          labelText: 'Field Name',
+                                          isDense: true,
                                         ),
-                                        const SizedBox(width: 8),
-                                        DropdownButton<String>(
-                                          value: field.type,
-                                          items: ['Text', 'Number', 'Date']
-                                              .map((t) => DropdownMenuItem(
-                                                    value: t,
-                                                    child: Text(t),
-                                                  ))
-                                              .toList(),
-                                          onChanged: (val) {
-                                            setModalState(() {
-                                              field.type = val ?? 'Text';
-                                            });
-                                          },
-                                        ),
-                                        IconButton(
-                                          icon: Icon(
-                                            field.isRequired
-                                                ? Icons.star
-                                                : Icons.star_border,
-                                            color: field.isRequired
-                                                ? Colors.orange
-                                                : Colors.grey,
-                                          ),
-                                          tooltip: 'Toggle Required Field',
-                                          onPressed: () {
-                                            setModalState(() {
-                                              field.isRequired =
-                                                  !field.isRequired;
-                                            });
-                                          },
-                                        ),
-                                        if (formFields.length > 1)
-                                          IconButton(
-                                            icon: const Icon(Icons.delete,
-                                                color: Colors.red),
-                                            onPressed: () {
-                                              setModalState(() {
-                                                formFields.removeAt(idx);
-                                              });
-                                            },
-                                          ),
-                                      ],
+                                        controller: TextEditingController(
+                                            text: field.name)
+                                          ..selection = TextSelection
+                                              .fromPosition(TextPosition(
+                                                  offset: field.name.length)),
+                                        onChanged: (val) => field.name = val,
+                                      ),
                                     ),
+                                    const SizedBox(width: 8),
+                                    DropdownButton<String>(
+                                      value: field.type,
+                                      items: ['Text', 'Number', 'Date']
+                                          .map((t) => DropdownMenuItem(
+                                                value: t,
+                                                child: Text(t),
+                                              ))
+                                          .toList(),
+                                      onChanged: (val) {
+                                        setModalState(() {
+                                          field.type = val ?? 'Text';
+                                        });
+                                      },
+                                    ),
+                                    IconButton(
+                                      icon: Icon(
+                                        field.isRequired
+                                            ? Icons.star
+                                            : Icons.star_border,
+                                        color: field.isRequired
+                                            ? Colors.orange
+                                            : Colors.grey,
+                                      ),
+                                      onPressed: () {
+                                        setModalState(() {
+                                          field.isRequired = !field.isRequired;
+                                        });
+                                      },
+                                    ),
+                                    if (formFields.length > 1)
+                                      IconButton(
+                                        icon: const Icon(Icons.delete,
+                                            color: Colors.red),
+                                        onPressed: () {
+                                          setModalState(() {
+                                            formFields.removeAt(idx);
+                                          });
+                                        },
+                                      ),
                                   ],
                                 ),
                               ),
                             );
                           }).toList(),
-
                           OutlinedButton.icon(
                             onPressed: () {
                               setModalState(() {
@@ -178,33 +190,38 @@ class _LogListScreenState extends State<LogListScreen> {
                             icon: const Icon(Icons.add),
                             label: const Text('Add Field Schema'),
                           ),
-
-                          const SizedBox(height: 20),
-                          const Text(
-                            '2. Open Generated Form to Input Data:',
-                            style: TextStyle(
-                                fontWeight: FontWeight.bold,
-                                color: Colors.blueGrey),
-                          ),
-                          const SizedBox(height: 10),
-
-                          SizedBox(
-                            width: double.infinity,
-                            child: ElevatedButton.icon(
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.blue.shade700,
-                                foregroundColor: Colors.white,
-                              ),
-                              icon: const Icon(Icons.article),
-                              label: const Text('Open & Fill Form'),
-                              onPressed: () {
-                                Navigator.pop(context);
-                                _openFilledFormDialog(formFields);
-                              },
-                            ),
-                          ),
                         ],
                       ),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.blue.shade700,
+                        foregroundColor: Colors.white,
+                      ),
+                      icon: const Icon(Icons.save),
+                      label: const Text('Save Form Template to Desktop'),
+                      onPressed: () {
+                        setState(() {
+                          _savedForms.add({
+                            'id': DateTime.now().millisecondsSinceEpoch,
+                            'title': formNameController.text,
+                            'fields': formFields
+                                .map((f) => f.toJson())
+                                .toList(),
+                          });
+                        });
+                        Navigator.pop(context);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(
+                                'Form "${formNameController.text}" Saved to Desktop!'),
+                          ),
+                        );
+                      },
                     ),
                   ),
                 ],
@@ -216,8 +233,12 @@ class _LogListScreenState extends State<LogListScreen> {
     );
   }
 
-  // Generated Form view (Data Input)
-  void _openFilledFormDialog(List<CustomFieldConfig> schema) {
+  // Saved Form ဖြည့်စွက်ရန် Dialog
+  void _openFilledFormDialog(Map<String, dynamic> formTemplate) {
+    List<CustomFieldConfig> schema = (formTemplate['fields'] as List)
+        .map((f) => CustomFieldConfig.fromJson(f))
+        .toList();
+
     Map<String, TextEditingController> controllers = {
       for (var s in schema) s.name: TextEditingController()
     };
@@ -226,13 +247,7 @@ class _LogListScreenState extends State<LogListScreen> {
       context: context,
       builder: (dialogCtx) {
         return AlertDialog(
-          title: const Row(
-            children: [
-              Icon(Icons.assignment, color: Colors.blue),
-              SizedBox(width: 8),
-              Text('Access Entry Form'),
-            ],
-          ),
+          title: Text(formTemplate['title'] ?? 'Access Form Entry'),
           content: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -280,7 +295,8 @@ class _LogListScreenState extends State<LogListScreen> {
               onPressed: () async {
                 String mainTitle = controllers.values.first.text;
                 if (mainTitle.isEmpty) {
-                  mainTitle = 'Access Record (${DateTime.now().toString().substring(0, 10)})';
+                  mainTitle =
+                      '${formTemplate['title']} Entry (${DateTime.now().toString().substring(0, 10)})';
                 }
 
                 Map<String, String> dataResult = {};
@@ -289,7 +305,7 @@ class _LogListScreenState extends State<LogListScreen> {
                 });
 
                 Map<String, dynamic> fullData = {
-                  'type': 'Access_Form',
+                  'type': formTemplate['title'],
                   'custom_fields': dataResult,
                 };
 
@@ -307,6 +323,51 @@ class _LogListScreenState extends State<LogListScreen> {
           ],
         );
       },
+    );
+  }
+
+  // Saved Forms List Modal
+  void _showSavedFormsDialog() {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Row(
+          children: [
+            Icon(Icons.folder_special, color: Colors.blue),
+            SizedBox(width: 8),
+            Text('Saved Form Templates'),
+          ],
+        ),
+        content: _savedForms.isEmpty
+            ? const Text('No Saved Forms found.')
+            : SizedBox(
+                width: double.maxFinite,
+                child: ListView.builder(
+                  shrinkWrap: true,
+                  itemCount: _savedForms.length,
+                  itemBuilder: (context, index) {
+                    var item = _savedForms[index];
+                    return ListTile(
+                      leading: const Icon(Icons.article, color: Colors.blue),
+                      title: Text(item['title']),
+                      trailing: IconButton(
+                        icon: const Icon(Icons.arrow_forward_ios, size: 16),
+                        onPressed: () {
+                          Navigator.pop(ctx);
+                          _openFilledFormDialog(item);
+                        },
+                      ),
+                    );
+                  },
+                ),
+              ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
     );
   }
 
@@ -333,7 +394,7 @@ class _LogListScreenState extends State<LogListScreen> {
     }
   }
 
-  // Settings Dialog
+  // Theme Settings Dialog
   void _showSettingsDialog() {
     showDialog(
       context: context,
@@ -416,26 +477,34 @@ class _LogListScreenState extends State<LogListScreen> {
             icon: const Icon(Icons.filter_list),
             tooltip: 'Menu Options',
             onSelected: (String value) {
-              if (value == 'create_form') {
+              if (value == 'create_new_form') {
                 _showAccessFormBuilder();
+              } else if (value == 'saved_forms') {
+                _showSavedFormsDialog();
               } else if (value == 'settings') {
                 _showSettingsDialog();
               } else if (value == 'all') {
                 _refreshLogs();
-              } else if (value == 'latest') {
-                setState(() {
-                  _logs.sort((a, b) => b['id'].compareTo(a['id']));
-                });
               }
             },
             itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
               const PopupMenuItem<String>(
-                value: 'create_form',
+                value: 'create_new_form',
                 child: Row(
                   children: [
-                    Icon(Icons.table_chart, color: Colors.blue),
+                    Icon(Icons.design_services, color: Colors.blue),
                     SizedBox(width: 8),
-                    Text('Create Form (Access Style)'),
+                    Text('Create New Form'),
+                  ],
+                ),
+              ),
+              const PopupMenuItem<String>(
+                value: 'saved_forms',
+                child: Row(
+                  children: [
+                    Icon(Icons.folder_special, color: Colors.indigo),
+                    SizedBox(width: 8),
+                    Text('Saved Forms'),
                   ],
                 ),
               ),
@@ -460,40 +529,103 @@ class _LogListScreenState extends State<LogListScreen> {
                   ],
                 ),
               ),
-              const PopupMenuItem<String>(
-                value: 'latest',
-                child: Row(
-                  children: [
-                    Icon(Icons.arrow_downward, color: Colors.black54),
-                    SizedBox(width: 8),
-                    Text('Sort Newest First'),
-                  ],
-                ),
-              ),
             ],
           ),
         ],
       ),
-      body: _logs.isEmpty
-          ? const Center(child: Text('No Logs Found'))
-          : ListView.builder(
-              itemCount: _logs.length,
-              itemBuilder: (context, index) => Card(
-                margin: const EdgeInsets.all(8),
-                child: ListTile(
-                  title: Text(_logs[index]['title'] ?? ''),
-                  subtitle:
-                      _buildLogSubtitle(_logs[index]['description'] ?? ''),
-                  trailing: IconButton(
-                    icon: const Icon(Icons.delete, color: Colors.red),
-                    onPressed: () async {
-                      await DBHelper.deleteLog(_logs[index]['id']);
-                      _refreshLogs();
-                    },
-                  ),
+      body: SingleChildScrollView(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Desktop View: Saved Form Templates Cards
+            if (_savedForms.isNotEmpty) ...[
+              const Padding(
+                padding: EdgeInsets.only(left: 12, top: 12, bottom: 4),
+                style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.blueGrey),
+                child: Text('Desktop - Form Shortcuts'),
+              ),
+              SizedBox(
+                height: 90,
+                child: ListView.builder(
+                  scrollDirection: Axis.horizontal,
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  itemCount: _savedForms.length,
+                  itemBuilder: (context, index) {
+                    var item = _savedForms[index];
+                    return Card(
+                      color: Colors.blue.shade50,
+                      child: InkWell(
+                        onTap: () => _openFilledFormDialog(item),
+                        child: Container(
+                          width: 140,
+                          padding: const EdgeInsets.all(8),
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              const Icon(Icons.assignment,
+                                  color: Colors.blueAccent),
+                              const SizedBox(height: 4),
+                              Text(
+                                item['title'],
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.black87),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    );
+                  },
                 ),
               ),
+              const Divider(),
+            ],
+
+            // Main Service Logs List
+            const Padding(
+              padding: EdgeInsets.only(left: 12, top: 8, bottom: 4),
+              child: Text('Service Logs',
+                  style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.blueGrey)),
             ),
+            _logs.isEmpty
+                ? const Center(
+                    child: Padding(
+                    padding: EdgeInsets.all(30.0),
+                    child: Text('No Logs Found'),
+                  ))
+                : ListView.builder(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    itemCount: _logs.length,
+                    itemBuilder: (context, index) => Card(
+                      margin: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 4),
+                      child: ListTile(
+                        title: Text(_logs[index]['title'] ?? ''),
+                        subtitle: _buildLogSubtitle(
+                            _logs[index]['description'] ?? ''),
+                        trailing: IconButton(
+                          icon: const Icon(Icons.delete, color: Colors.red),
+                          onPressed: () async {
+                            await DBHelper.deleteLog(_logs[index]['id']);
+                            _refreshLogs();
+                          },
+                        ),
+                      ),
+                    ),
+                  ),
+          ],
+        ),
+      ),
       floatingActionButton: FloatingActionButton(
         onPressed: () => _showAccessFormBuilder(),
         child: const Icon(Icons.add),
