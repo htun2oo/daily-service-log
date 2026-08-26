@@ -1,5 +1,12 @@
-import 'dart021/convert';
+import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:excel/excel.dart' as excel_lib;
+import 'package:pdf/pdf.dart';
+import 'package:pdf/widgets.dart' as pw;
+import 'package:printing/printing.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'db_helper.dart';
 import 'main.dart';
 
@@ -39,7 +46,6 @@ class _LogListScreenState extends State<LogListScreen> {
   List<Map<String, dynamic>> _logs = [];
   final List<Map<String, dynamic>> _savedForms = [];
 
-  // Data Types စာရင်း အသစ်ပြင်ဆင်ထားခြင်း
   final List<String> _dataTypes = [
     'Short Text',
     'Long Text',
@@ -63,7 +69,165 @@ class _LogListScreenState extends State<LogListScreen> {
     });
   }
 
-  // Create or Edit Form Builder Window
+  // Permission တောင်းဆိုရန်
+  Future<bool> _requestPermission() async {
+    if (Platform.isAndroid) {
+      var status = await Permission.storage.status;
+      if (!status.isGranted) {
+        status = await Permission.storage.request();
+      }
+      return status.isGranted || await Permission.manageExternalStorage.request().isGranted;
+    }
+    return true;
+  }
+
+  // Export to Excel Function
+  Future<void> _exportToExcel() async {
+    if (_logs.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No log data to export.')),
+      );
+      return;
+    }
+
+    await _requestPermission();
+
+    var excel = excel_lib.Excel.createExcel();
+    excel_lib.Sheet sheetObject = excel['Daily Service Logs'];
+    excel.delete('Sheet1');
+
+    // Header
+    sheetObject.appendRow([
+      excel_lib.TextCellValue('ID'),
+      excel_lib.TextCellValue('Title'),
+      excel_lib.TextCellValue('Details'),
+      excel_lib.TextCellValue('Date')
+    ]);
+
+    // Data Rows
+    for (var log in _logs) {
+      sheetObject.appendRow([
+        excel_lib.TextCellValue(log['id'].toString()),
+        excel_lib.TextCellValue(log['title']?.toString() ?? ''),
+        excel_lib.TextCellValue(log['description']?.toString() ?? ''),
+        excel_lib.TextCellValue(log['date']?.toString() ?? ''),
+      ]);
+    }
+
+    var fileBytes = excel.save();
+    if (fileBytes != null) {
+      Directory? directory = await getExternalStorageDirectory();
+      String path = directory?.path ?? (await getApplicationDocumentsDirectory()).path;
+      String filePath = "$path/Daily_Service_Logs_${DateTime.now().millisecondsSinceEpoch}.xlsx";
+      
+      File(filePath)
+        ..createSync(recursive: true)
+        ..writeAsBytesSync(fileBytes);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Exported to Excel: $filePath')),
+        );
+      }
+    }
+  }
+
+  // Export & Print PDF Function
+  Future<void> _exportToPDF() async {
+    if (_logs.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No log data to export.')),
+      );
+      return;
+    }
+
+    final pdf = pw.Document();
+
+    pdf.addPage(
+      pw.Page(
+        pageFormat: PdfPageFormat.a4,
+        build: (pw.Context context) {
+          return pw.Column(
+            cross: pw.CrossAxisAlignment.start,
+            children: [
+              pw.Text('Daily Service Logs Report',
+                  style: pw.TextStyle(fontSize: 20, fontWeight: pw.FontWeight.bold)),
+              pw.SizedBox(height: 10),
+              pw.Table.fromTextArray(
+                headers: ['ID', 'Title', 'Date'],
+                data: _logs
+                    .map((log) => [
+                          log['id'].toString(),
+                          log['title']?.toString() ?? '',
+                          log['date']?.toString().substring(0, 10) ?? ''
+                        ])
+                    .toList(),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+
+    await Printing.layoutPdf(
+      onLayout: (PdfPageFormat format) async => pdf.save(),
+    );
+  }
+
+  // Database Tools Dialog (Clear / Reset Data)
+  void _showDatabaseToolsDialog() {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Row(
+          children: [
+            Icon(Icons.storage, color: Colors.blueAccent),
+            SizedBox(width: 8),
+            Text('Database Tools'),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.refresh, color: Colors.blue),
+              title: const Text('Refresh Data'),
+              subtitle: const Text('Reload logs from database'),
+              onTap: () {
+                Navigator.pop(ctx);
+                _refreshLogs();
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.delete_forever, color: Colors.red),
+              title: const Text('Clear All Logs'),
+              subtitle: const Text('Permanently delete all logs'),
+              onTap: () async {
+                Navigator.pop(ctx);
+                for (var log in _logs) {
+                  await DBHelper.deleteLog(log['id']);
+                }
+                _refreshLogs();
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('All logs cleared.')),
+                  );
+                }
+              },
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Form Builder
   void _showAccessFormBuilder({Map<String, dynamic>? existingForm, int? editIndex}) {
     TextEditingController formNameController = TextEditingController(
         text: existingForm != null ? existingForm['title'] : 'New Form Template');
@@ -266,7 +430,7 @@ class _LogListScreenState extends State<LogListScreen> {
     );
   }
 
-  // Saved Form ဖြည့်စွက်ရန် Full Screen Dialog
+  // Saved Form Entry Dialog
   void _openFilledFormDialog(Map<String, dynamic> formTemplate) {
     List<dynamic> rawFields = formTemplate['fields'] ?? [];
     List<CustomFieldConfig> schema = rawFields
@@ -301,7 +465,6 @@ class _LogListScreenState extends State<LogListScreen> {
                         itemBuilder: (context, index) {
                           var field = schema[index];
 
-                          // Photo Field UI
                           if (field.type == 'Photo') {
                             return Padding(
                               padding: const EdgeInsets.only(bottom: 16),
@@ -318,7 +481,6 @@ class _LogListScreenState extends State<LogListScreen> {
                             );
                           }
 
-                          // Attachment Field UI (အသစ်ဖြည့်စွက်ထားသည်)
                           if (field.type == 'Attachment') {
                             return Padding(
                               padding: const EdgeInsets.only(bottom: 16),
@@ -335,7 +497,6 @@ class _LogListScreenState extends State<LogListScreen> {
                             );
                           }
 
-                          // Text & Number Fields UI
                           bool isLongText = field.type == 'Long Text';
                           bool isNumber = field.type == 'Number' || field.type == 'Long Number';
 
@@ -343,14 +504,13 @@ class _LogListScreenState extends State<LogListScreen> {
                             padding: const EdgeInsets.only(bottom: 16),
                             child: TextField(
                               controller: controllers[field.name],
-                              maxLines: isLongText ? 4 : 1, // Long Text ဖြစ်ပါက ၄ လိုင်းစာ ပေါ်မည်
+                              maxLines: isLongText ? 10 : 1, // Long Text ကို maxLines: 10 သို့ ပြောင်းထားသည်
                               keyboardType: isNumber
                                   ? TextInputType.number
-                                  : TextInputType.text,
+                                  : TextInputType.multiline,
                               decoration: InputDecoration(
                                 labelText:
                                     '${field.name}${field.isRequired ? " *" : ""}',
-                                hintText: field.type == 'Long Number' ? 'Enter large numbers' : null,
                                 border: const OutlineInputBorder(),
                                 suffixIcon: field.type == 'Date'
                                     ? IconButton(
@@ -435,7 +595,6 @@ class _LogListScreenState extends State<LogListScreen> {
     );
   }
 
-  // Saved Form Select/Edit Dialog Window
   void _showSelectOrEditFormDialog({bool isEditMode = false}) {
     showDialog(
       context: context,
@@ -517,7 +676,6 @@ class _LogListScreenState extends State<LogListScreen> {
     );
   }
 
-  // Subtitle Parsing
   Widget _buildLogSubtitle(String rawDesc) {
     try {
       Map<String, dynamic> data = jsonDecode(rawDesc);
@@ -540,7 +698,6 @@ class _LogListScreenState extends State<LogListScreen> {
     }
   }
 
-  // Settings Dialog
   void _showSettingsDialog() {
     showDialog(
       context: context,
@@ -629,6 +786,12 @@ class _LogListScreenState extends State<LogListScreen> {
                 _showSelectOrEditFormDialog(isEditMode: true);
               } else if (value == 'saved_forms') {
                 _showSelectOrEditFormDialog(isEditMode: false);
+              } else if (value == 'export_excel') {
+                _exportToExcel();
+              } else if (value == 'export_pdf') {
+                _exportToPDF();
+              } else if (value == 'db_tools') {
+                _showDatabaseToolsDialog();
               } else if (value == 'settings') {
                 _showSettingsDialog();
               } else if (value == 'all') {
@@ -666,6 +829,38 @@ class _LogListScreenState extends State<LogListScreen> {
                   ],
                 ),
               ),
+              const PopupMenuDivider(),
+              const PopupMenuItem<String>(
+                value: 'export_excel',
+                child: Row(
+                  children: [
+                    Icon(Icons.table_chart, color: Colors.green),
+                    SizedBox(width: 8),
+                    Text('Export to Excel'),
+                  ],
+                ),
+              ),
+              const PopupMenuItem<String>(
+                value: 'export_pdf',
+                child: Row(
+                  children: [
+                    Icon(Icons.picture_as_pdf, color: Colors.red),
+                    SizedBox(width: 8),
+                    Text('Export / Print PDF'),
+                  ],
+                ),
+              ),
+              const PopupMenuItem<String>(
+                value: 'db_tools',
+                child: Row(
+                  children: [
+                    Icon(Icons.storage, color: Colors.blueAccent),
+                    SizedBox(width: 8),
+                    Text('Database Tools'),
+                  ],
+                ),
+              ),
+              const PopupMenuDivider(),
               const PopupMenuItem<String>(
                 value: 'settings',
                 child: Row(
@@ -676,7 +871,6 @@ class _LogListScreenState extends State<LogListScreen> {
                   ],
                 ),
               ),
-              const PopupMenuDivider(),
               const PopupMenuItem<String>(
                 value: 'all',
                 child: Row(
