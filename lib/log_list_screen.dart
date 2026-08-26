@@ -148,7 +148,7 @@ class _LogListScreenState extends State<LogListScreen> {
         pageFormat: PdfPageFormat.a4,
         build: (pw.Context context) {
           return pw.Column(
-            cross: pw.CrossAxisAlignment.start,
+            crossAxisAlignment: pw.CrossAxisAlignment.start, // cross နေရာတွင် crossAxisAlignment ဟု ပြောင်းပါ
             children: [
               pw.Text('Daily Service Logs Report',
                   style: pw.TextStyle(fontSize: 20, fontWeight: pw.FontWeight.bold)),
@@ -173,7 +173,7 @@ class _LogListScreenState extends State<LogListScreen> {
       onLayout: (PdfPageFormat format) async => pdf.save(),
     );
   }
-
+  
   // Database Tools Dialog (Clear / Reset Data)
   void _showDatabaseToolsDialog() {
     showDialog(
